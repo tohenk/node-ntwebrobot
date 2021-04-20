@@ -192,21 +192,25 @@ class WebRobot {
                             })
                         ])
                             .then(() => {
+                                let value = data.value;
+                                if (typeof data.converter == 'function') {
+                                    value = data.converter(value);
+                                }
                                 switch (true) {
                                     case tagName == 'select':
-                                        this.click({el: el, data: By.xpath('//option[@value="' + data.value + '"]')})
+                                        this.click({el: el, data: By.xpath('//option[@value="' + value + '"]')})
                                             .then(() => next())
                                             .catch((err) => reject(err))
                                         ;
                                         break;
                                     case tagName == 'input' && type == 'checkbox':
-                                        this.fillCheckbox(el, data.value)
+                                        this.fillCheckbox(el, value)
                                             .then(() => next())
                                             .catch((err) => reject(err))
                                         ;
                                         break;
                                     default:
-                                        this.fillInput(el, data.value)
+                                        this.fillInput(el, value)
                                             .then(() => next())
                                             .catch((err) => reject(err))
                                         ;
