@@ -1,7 +1,7 @@
 {
   "name": "@ntlab/webrobot",
-  "version": "1.0.0",
-  "description": "A webroot based on Selenium",
+  "version": "1.0.1",
+  "description": "A webrobot based on Selenium",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
