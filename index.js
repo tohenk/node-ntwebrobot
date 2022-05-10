@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Toha <tohenk@yahoo.com>
+ * Copyright (c) 2021-2022 Toha <tohenk@yahoo.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -136,33 +136,26 @@ class WebRobot {
     }
 
     open() {
-        return new Promise((resolve, reject) => {
-            if (this.opened && this.driver) {
-                return resolve();
-            }
-            try {
-                this.getDriver().get(this.url)
-                    .then(() => {
-                        this.opened = true;
-                        if (this.browser == this.FIREFOX) {
-                            this.getDriver().manage().window().maximize();
-                        }
-                        resolve();
-                    })
-                    .catch((err) => reject(err))
-                ;
-            }
-            catch (err) {
-                reject(err);
-            }
-        });
+        if (this.opened && this.driver) {
+            return Promise.resolve();
+        }
+        return Work.works([
+            w => this.getDriver().get(this.url),
+            w => new Promise((resolve, reject) => {
+                this.opened = true;
+                if (this.browser == this.FIREFOX) {
+                    this.getDriver().manage().window().maximize();
+                }
+                resolve();
+            }),
+        ]);
     }
 
     fillInForm(values, check, submit) {
         return Work.works([
-            () => this.waitFor(check),
-            () => new Promise((resolve, reject) => {
-                const q = new Queue(values, (data) => {
+            w => this.waitFor(check),
+            w => new Promise((resolve, reject) => {
+                const q = new Queue(values, data => {
                     const next = () => {
                         if (typeof data.done == 'function') {
                             data.done(data, () => q.next());
@@ -171,53 +164,9 @@ class WebRobot {
                         }
                     }
                     data.handler = () => {
-                        let tagName, type;
-                        const el = this.findElement(data.target);
-                        Work.works([
-                            () => new Promise((resolve, reject) => {
-                                el.getTagName()
-                                    .then((xtag) => {
-                                        tagName = xtag;
-                                        resolve();
-                                    })
-                                ;
-                            }),
-                            () => new Promise((resolve, reject) => {
-                                el.getAttribute('type')
-                                    .then((xtype) => {
-                                        type = xtype;
-                                        resolve();
-                                    })
-                                ;
-                            })
-                        ])
-                            .then(() => {
-                                let value = data.value;
-                                if (typeof data.converter == 'function') {
-                                    value = data.converter(value);
-                                }
-                                switch (true) {
-                                    case tagName == 'select':
-                                        this.click({el: el, data: By.xpath('//option[@value="' + value + '"]')})
-                                            .then(() => next())
-                                            .catch((err) => reject(err))
-                                        ;
-                                        break;
-                                    case tagName == 'input' && type == 'checkbox':
-                                        this.fillCheckbox(el, value)
-                                            .then(() => next())
-                                            .catch((err) => reject(err))
-                                        ;
-                                        break;
-                                    default:
-                                        this.fillInput(el, value)
-                                            .then(() => next())
-                                            .catch((err) => reject(err))
-                                        ;
-                                        break;
-                                }
-                            })
-                            .catch((err) => reject(err))
+                        this.fillFormValue(data)
+                            .then(() => next())
+                            .catch(err => reject(err))
                         ;
                     }
                     if (data.wait) {
@@ -230,11 +179,12 @@ class WebRobot {
                 });
                 q.once('done', () => {
                     if (submit) {
-                        const el = this.findElement(submit);
-                        el.click()
-                            .then(() => resolve())
-                            .catch((err) => reject(err))
-                        ;
+                        Work.works([
+                            w => this.findElement(submit),
+                            w => w.getRes(0).click(),
+                        ])
+                        .then(() => resolve())
+                        .catch(err => reject(err));
                     } else {
                         resolve();
                     }
@@ -243,34 +193,41 @@ class WebRobot {
         ]);
     }
 
+    fillFormValue(data) {
+        return Work.works([
+            w => this.findElement(data.target),
+            w => w.getRes(0).getTagName(),
+            w => w.getRes(0).getAttribute('type'),
+            w => new Promise((resolve, reject) => {
+                let value = data.value;
+                if (typeof data.converter == 'function') {
+                    value = data.converter(value);
+                }
+                resolve(value);
+            }),
+            // select
+            [w => this.click({el: w.getRes(0), data: By.xpath('//option[@value="' + w.getRes(3) + '"]')}),
+                w => w.getRes(1) == 'select'],
+            // checkbox
+            [w => this.fillCheckbox(w.getRes(0), w.getRes(3)),
+                w => w.getRes(1) == 'input' && w.getRes(2) == 'checkbox'],
+            // other inputs
+            [w => this.fillInput(w.getRes(0), w.getRes(3)),
+                w => (w.getRes(1) == 'input' && w.getRes(2) != 'checkbox') || w.getRes(1) != 'select'],
+        ]);
+    }
+
     fillInput(el, value) {
-        return new Promise((resolve, reject) => {
-            el.clear()
-                .then(() => {
-                    if (null != value) {
-                        el.sendKeys(value)
-                            .then(() => resolve())
-                            .catch((err) => reject(err))
-                        ;
-                    } else {
-                        resolve();
-                    }
-                })
-            ;
-        });
+        return Work.works([
+            w => el.clear(),
+            [w => el.sendKeys(value), w => null != value],
+        ]);
     }
 
     fillCheckbox(el, value) {
-        return new Promise((resolve, reject) => {
-            if (el.isSelected() != value) {
-                el.click()
-                    .then(() => resolve())
-                    .catch((err) => reject(err))
-                ;
-            } else {
-                resolve();
-            }
-        });
+        return Work.works([
+            [w => el.click(), w => el.isSelected() != value],
+        ]);
     }
 
     getFormValues(form, fields, useId = false) {
@@ -278,25 +235,16 @@ class WebRobot {
             const values = {};
             const q = new Queue(fields, (name) => {
                 const next = () => q.next();
-                form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]'))
-                    .then((fel) => {
-                        const fval = (type) => {
-                            let prop = type == 'checkbox' ? 'checked' : 'value';
-                            fel.getAttribute(prop)
-                                .then((xvalue) => {
-                                    values[name] = xvalue;
-                                    next();
-                                })
-                                .catch(() => next())
-                            ;
-                        }
-                        fel.getAttribute('type')
-                            .then((xtype) => fval(xtype))
-                            .catch(() => fval())
-                        ;
-                    })
-                    .catch(() => next())
-                ;
+                Work.works([
+                    w => form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]')),
+                    w => w.res.getAttribute('type'),
+                    w => w.pres.getAttribute(w.res == 'checkbox' ? 'checked' : 'value'),
+                ])
+                .then(value => {
+                    values[name] = value;
+                    next();
+                })
+                .catch(() => next());
             });
             q.once('done', () => resolve(values));
         });
@@ -310,58 +258,41 @@ class WebRobot {
     }
 
     click(data) {
-        return new Promise((resolve, reject) => {
-            this.findElement(data)
-                .then((el) => {
-                    el.click()
-                        .then(() => resolve())
-                        .catch((err) => reject(err))
-                    ;
-                })
-                .catch((err) => reject(err))
-            ;
-        })
+        return Work.works([
+            w => this.findElement(data),
+            w => w.res.click(),
+        ]);
     }
 
     waitFor(data) {
-        return new Promise((resolve, reject) => {
-            this.getDriver().wait(until.elementLocated(data), this.timeout)
-                .then((el) => resolve(el))
-                .catch((err) => reject(err))
-            ;
-        });
+        return Work.works([
+            w => this.getDriver().wait(until.elementLocated(data), this.timeout),
+        ]);
     }
 
     waitAndClick(data) {
-        return new Promise((resolve, reject) => {
-            this.waitFor(data)
-                .then((el) => {
-                    el.click()
-                        .then(() => resolve())
-                        .catch((err) => reject(err))
-                    ;
-                })
-                .catch((err) => reject(err))
-            ;
-        });
+        return Work.works([
+            w => this.waitFor(data),
+            w => w.res.click(),
+        ]);
     }
 
     getText(items, parent) {
+        if (!parent) {
+            parent = this.getDriver();
+        }
         return new Promise((resolve, reject) => {
             const result = [];
-            if (!parent) {
-                parent = this.getDriver();
-            }
-            const q = new Queue(items, (item) => {
-                parent.findElement(item)
-                    .then((el) => {
-                        el.getAttribute('innerText').then((text) => {
-                            result.push(text);
-                            q.next();
-                        });
-                    })
-                    .catch((err) => reject(err))
-                ;
+            const q = new Queue(items, item => {
+                Work.works([
+                    w => parent.findElement(item),
+                    w => w.res.getAttribute('innerText'),
+                ])
+                .then(text => {
+                    result.push(text);
+                    q.next();
+                })
+                .catch(err => reject(err));
             });
             q.once('done', () => resolve(result))
         });
