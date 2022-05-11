@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const { Builder, By, until } = require('selenium-webdriver');
-const { Queue, Work } = require('@ntlab/ntlib');
+const { Queue, Work } = require('@ntlab/work');
 
 class WebRobot {
 
