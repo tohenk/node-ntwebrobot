@@ -90,17 +90,24 @@ class WebRobot {
             }
             let options;
             const profile = this.getProfileDir();
+            const downloaddir = this.options.downloaddir;
             switch (this.browser) {
                 case this.CHROME:
                     const ChromeOptions = require('selenium-webdriver/chrome').Options;
                     options = new ChromeOptions();
                     options.addArguments('start-maximized');
                     options.addArguments('user-data-dir=' + profile);
+                    if (downloaddir) {
+                        options.setUserPreferences({'download.default_directory': downloaddir});
+                    }
                     break;
                 case this.FIREFOX:
                     const FirefoxOptions = require('selenium-webdriver/firefox').Options;
                     options = new FirefoxOptions();
                     options.setProfile(profile);
+                    if (downloaddir) {
+                        options.setPreference('browser.download.dir', downloaddir);
+                    }
                     break;
             }
             this.driver = this.createDriver(options);
