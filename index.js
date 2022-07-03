@@ -23,6 +23,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { Builder, By, until } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
@@ -31,6 +32,7 @@ class WebRobot {
 
     CHROME = 'chrome'
     FIREFOX = 'firefox'
+    OPERA = 'opera'
 
     constructor(options) {
         this.options = options || {};
@@ -41,7 +43,7 @@ class WebRobot {
         this.timeout = this.options.timeout || 10000;
         this.wait = this.options.wait || 1000;
         this.ready = false;
-        this.browsers = [this.CHROME, this.FIREFOX];
+        this.browsers = [this.CHROME, this.FIREFOX, this.OPERA];
         this.initialize();
         this.setup();
     }
@@ -93,6 +95,7 @@ class WebRobot {
             const downloaddir = this.options.downloaddir;
             switch (this.browser) {
                 case this.CHROME:
+                case this.OPERA:
                     const ChromeOptions = require('selenium-webdriver/chrome').Options;
                     options = new ChromeOptions();
                     options.addArguments('start-maximized');
@@ -128,6 +131,14 @@ class WebRobot {
             case this.CHROME:
                 return new Builder()
                     .forBrowser(this.browser)
+                    .setChromeOptions(options)
+                    .build();
+            case this.OPERA:
+                const ChromeServiceBuilder = require('selenium-webdriver/chrome').ServiceBuilder;
+                const service = new ChromeServiceBuilder(os.platform() == 'win32' ? 'operadriver.exe' : 'operadriver');
+                return new Builder()
+                    .forBrowser(this.CHROME)
+                    .setChromeService(service)
                     .setChromeOptions(options)
                     .build();
             case this.FIREFOX:
