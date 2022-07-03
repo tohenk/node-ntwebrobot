@@ -23,10 +23,11 @@
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { Builder, By, until } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
+
+let operaService;
 
 class WebRobot {
 
@@ -129,16 +130,15 @@ class WebRobot {
     createDriver(options) {
         switch (this.browser) {
             case this.CHROME:
-                return new Builder()
-                    .forBrowser(this.browser)
-                    .setChromeOptions(options)
-                    .build();
             case this.OPERA:
-                const ChromeServiceBuilder = require('selenium-webdriver/chrome').ServiceBuilder;
-                const service = new ChromeServiceBuilder(os.platform() == 'win32' ? 'operadriver.exe' : 'operadriver');
+                if (this.browser == this.OPERA && !operaService) {
+                    const { ServiceBuilder, setDefaultService } = require('selenium-webdriver/chrome');
+                    const { findInPath } = require('selenium-webdriver/io');
+                    operaService = new ServiceBuilder(findInPath(process.platform == 'win32' ? 'operadriver.exe' : 'operadriver', true));
+                    setDefaultService(operaService.build());
+                }
                 return new Builder()
                     .forBrowser(this.CHROME)
-                    .setChromeService(service)
                     .setChromeOptions(options)
                     .build();
             case this.FIREFOX:
