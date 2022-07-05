@@ -169,6 +169,21 @@ class WebRobot {
         ]);
     }
 
+    close() {
+        if (!this.driver) {
+            return Promise.resolve();
+        }
+        return Work.works([
+            w => this.getDriver().quit(),
+        ], {
+            done: () => new Promise((resolve, reject) => {
+                this.driver = null;
+                this.opened = false;
+                resolve();
+            })
+        });
+    }
+
     fillInForm(values, check, submit) {
         return Work.works([
             w => this.waitFor(check),
