@@ -115,6 +115,10 @@ class WebRobot {
                     break;
             }
             this.driver = this.createDriver(options);
+            // opera doesn't honor download.default_directory
+            if (downloaddir && this.browser == this.OPERA) {
+                this.driver.setDownloadPath(downloaddir);
+            }
         }
         return this.driver;
     }
