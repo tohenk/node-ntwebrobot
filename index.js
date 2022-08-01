@@ -132,25 +132,29 @@ class WebRobot {
     }
 
     createDriver(options) {
+        let builder;
         switch (this.browser) {
             case this.CHROME:
             case this.OPERA:
-                if (this.browser == this.OPERA && !operaService) {
-                    const { ServiceBuilder, setDefaultService } = require('selenium-webdriver/chrome');
-                    const { findInPath } = require('selenium-webdriver/io');
-                    operaService = new ServiceBuilder(findInPath(process.platform == 'win32' ? 'operadriver.exe' : 'operadriver', true));
-                    setDefaultService(operaService.build());
-                }
-                return new Builder()
+                builder = new Builder()
                     .forBrowser(this.CHROME)
-                    .setChromeOptions(options)
-                    .build();
+                    .setChromeOptions(options);
+                if (this.browser == this.OPERA) {
+                    if (!operaService) {
+                        const { ServiceBuilder } = require('selenium-webdriver/chrome');
+                        const { findInPath } = require('selenium-webdriver/io');
+                        operaService = new ServiceBuilder(findInPath(process.platform == 'win32' ? 'operadriver.exe' : 'operadriver', true));
+                    }
+                    builder.setChromeService(operaService);
+                }
+                break;
             case this.FIREFOX:
-                return new Builder()
+                builder = new Builder()
                     .forBrowser(this.browser)
-                    .setFirefoxOptions(options)
-                    .build();
+                    .setFirefoxOptions(options);
+                break;
         }
+        return builder.build();
     }
 
     sleep(ms) {
