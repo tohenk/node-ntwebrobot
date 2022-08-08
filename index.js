@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 const { Builder, By, until } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 
@@ -34,6 +35,11 @@ class WebRobot {
     CHROME = 'chrome'
     FIREFOX = 'firefox'
     OPERA = 'opera'
+
+    SELECT = 1
+    CHECKBOX = 2
+    RADIO = 3
+    OTHER = 4
 
     constructor(options) {
         this.options = options || {};
@@ -204,10 +210,24 @@ class WebRobot {
                             q.next();
                         }
                     }
+                    // set parent if target is a relative path
+                    if (data.parent == undefined && data.target.using == 'xpath' && data.target.value.substring(0, 1) == '.') {
+                        data.parent = w.getRes(0);
+                    }
                     data.handler = () => {
                         this.fillFormValue(data)
                             .then(() => next())
-                            .catch(err => reject(err))
+                            .catch(err => {
+                                // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
+                                const d = Object.keys(data)
+                                    .filter(key => key != 'handler')
+                                    .reduce((obj, key) => {
+                                        obj[key] = data[key];
+                                        return obj;
+                                    }, {});
+                                console.error('Unable to fill form value %s: %s!', util.inspect(d), err);
+                                reject(err);
+                            })
                         ;
                     }
                     if (data.wait) {
@@ -236,7 +256,7 @@ class WebRobot {
 
     fillFormValue(data) {
         return Work.works([
-            w => this.findElement(data.target),
+            w => Promise.resolve(data.parent ? data.parent.findElement(data.target): this.findElement(data.target)),
             w => w.getRes(0).getTagName(),
             w => w.getRes(0).getAttribute('type'),
             w => new Promise((resolve, reject) => {
@@ -246,28 +266,85 @@ class WebRobot {
                 }
                 resolve(value);
             }),
+            // custom fill in value
+            w => new Promise((resolve, reject) => {
+                const f = () => {
+                    if (typeof data.onfill == 'function') {
+                        data.onfill(w.getRes(0), w.getRes(3))
+                            .then(() => resolve(false))
+                            .catch(err => reject(err));
+                    } else {
+                        resolve(true);
+                    }
+                }
+                if (typeof data.canfill == 'function') {
+                    data.canfill(w.getRes(1), w.getRes(0), w.getRes(3))
+                        .then(result => {
+                            if (result) {
+                                resolve(false);
+                            } else {
+                                f();
+                            }
+                        })
+                        .catch(err => reject(err));
+                } else {
+                    f();
+                }
+            }),
             // select
-            [w => this.click({el: w.getRes(0), data: By.xpath('//option[@value="' + w.getRes(3) + '"]')}),
-                w => w.getRes(1) == 'select'],
+            [w => this.fillSelect(w.getRes(0), w.getRes(3)),
+                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.SELECT],
             // checkbox
             [w => this.fillCheckbox(w.getRes(0), w.getRes(3)),
-                w => w.getRes(1) == 'input' && w.getRes(2) == 'checkbox'],
+                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.CHECKBOX],
+            // radio
+            [w => this.fillRadio(w.getRes(0), w.getRes(3)),
+                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.RADIO],
             // other inputs
             [w => this.fillInput(w.getRes(0), w.getRes(3)),
-                w => (w.getRes(1) == 'input' && w.getRes(2) != 'checkbox') || w.getRes(1) != 'select'],
+                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.OTHER],
         ]);
     }
 
-    fillInput(el, value) {
+    getInputType(tag, type) {
+        let input = this.OTHER;
+        switch (tag) {
+            case 'input':
+                if (type == 'checkbox') {
+                    input = this.CHECKBOX;
+                } else if (type == 'radio') {
+                    input = this.RADIO;
+                }
+                break;
+            case 'select':
+                input = this.SELECT;
+                break;
+        }
+        return input;
+    }
+
+    fillSelect(el, value) {
         return Work.works([
-            w => el.clear(),
-            [w => el.sendKeys(value), w => null != value],
+            [w => this.click({el: el, data: By.xpath('//option[@value="' + value + '"]')})],
         ]);
     }
 
     fillCheckbox(el, value) {
         return Work.works([
             [w => el.click(), w => el.isSelected() != value],
+        ]);
+    }
+
+    fillRadio(el, value) {
+        return Work.works([
+            [w => el.click()],
+        ]);
+    }
+
+    fillInput(el, value) {
+        return Work.works([
+            [w => el.clear()],
+            [w => el.sendKeys(value), w => null != value],
         ]);
     }
 
@@ -289,6 +366,13 @@ class WebRobot {
             });
             q.once('done', () => resolve(values));
         });
+    }
+
+    findElements(data) {
+        if (data.el && data.data) {
+            return data.el.findElements(data.data);
+        }
+        return this.getDriver().findElements(data);
     }
 
     findElement(data) {
