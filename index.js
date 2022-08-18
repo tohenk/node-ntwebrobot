@@ -172,14 +172,14 @@ class WebRobot {
             return Promise.resolve();
         }
         return Work.works([
-            w => this.getDriver().get(this.url),
-            w => new Promise((resolve, reject) => {
+            [w => this.getDriver().get(this.url)],
+            [w => new Promise((resolve, reject) => {
                 this.opened = true;
                 if (this.browser == this.FIREFOX) {
                     this.getDriver().manage().window().maximize();
                 }
                 resolve();
-            }),
+            })],
         ]);
     }
 
@@ -188,7 +188,7 @@ class WebRobot {
             return Promise.resolve();
         }
         return Work.works([
-            w => this.getDriver().quit(),
+            [w => this.getDriver().quit()],
         ], {
             done: () => new Promise((resolve, reject) => {
                 this.driver = null;
@@ -198,10 +198,10 @@ class WebRobot {
         });
     }
 
-    fillInForm(values, check, submit) {
+    fillInForm(values, form, submit) {
         return Work.works([
-            w => this.waitFor(check),
-            w => new Promise((resolve, reject) => {
+            [w => this.waitFor(form)],
+            [w => new Promise((resolve, reject) => {
                 const q = new Queue(values, data => {
                     const next = () => {
                         if (typeof data.done == 'function') {
@@ -214,63 +214,63 @@ class WebRobot {
                     if (data.parent == undefined && data.target.using == 'xpath' && data.target.value.substring(0, 1) == '.') {
                         data.parent = w.getRes(0);
                     }
-                    data.handler = () => {
-                        this.fillFormValue(data)
-                            .then(() => next())
-                            .catch(err => {
-                                // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
-                                const d = Object.keys(data)
-                                    .filter(key => key != 'handler')
-                                    .reduce((obj, key) => {
-                                        obj[key] = data[key];
-                                        return obj;
-                                    }, {});
-                                console.error('Unable to fill form value %s: %s!', util.inspect(d), err);
-                                reject(err);
-                            })
-                        ;
-                    }
-                    if (data.wait) {
-                        this.getDriver().sleep(this.wait)
-                            .then(() => data.handler())
-                        ;
-                    } else {
-                        data.handler();
-                    }
+                    Work.works([
+                        [w => this.sleep(this.wait), w => data.wait],
+                        [w => new Promise((resolve, reject) => {
+                            this.findElement(data.parent)
+                                .then(res => {
+                                    data.parent = res;
+                                    resolve();
+                                })
+                                .catch(err => reject(err))
+                            ;
+                        }), w => data.parent instanceof By],
+                        [w => new Promise((resolve, reject) => {
+                            this.fillFormValue(data)
+                                .then(() => next())
+                                .catch(err => {
+                                    // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
+                                    const d = Object.keys(data)
+                                        .filter(key => key != 'handler')
+                                        .reduce((obj, key) => {
+                                            obj[key] = data[key];
+                                            return obj;
+                                        }, {});
+                                    console.error('Unable to fill form value %s: %s!', util.inspect(d), err);
+                                    reject(err);
+                                })
+                            ;
+                        })],
+                    ])
+                    .then(() => next())
+                    .catch(err => reject(err));
                 });
                 q.once('done', () => {
-                    if (submit) {
-                        Work.works([
-                            w => this.findElement(submit),
-                            w => w.getRes(0).click(),
-                        ])
-                        .then(() => resolve())
-                        .catch(err => reject(err));
-                    } else {
-                        resolve();
-                    }
+                    Work.works([
+                        [w => this.findElement(submit), w => submit],
+                        [w => w.getRes(0).click(), w => submit],
+                        [w => Promise.resolve()],
+                    ])
+                    .then(() => resolve())
+                    .catch(err => reject(err));
                 });
-            })
+            })],
         ]);
     }
 
     fillFormValue(data) {
         return Work.works([
-            w => Promise.resolve(data.parent ? data.parent.findElement(data.target): this.findElement(data.target)),
-            w => w.getRes(0).getTagName(),
-            w => w.getRes(0).getAttribute('type'),
-            w => new Promise((resolve, reject) => {
-                let value = data.value;
-                if (typeof data.converter == 'function') {
-                    value = data.converter(value);
-                }
-                resolve(value);
-            }),
+            [w => Promise.resolve(data.parent ? data.parent.findElements(data.target): this.findElements(data.target))],
+            [w => Promise.reject('Element not found!'), w => w.getRes(0).length == 0],
+            [w => Promise.reject('Multi elements found!'), w => w.getRes(0).length > 1],
+            [w => w.getRes(0)[0].getTagName()],
+            [w => w.getRes(0)[0].getAttribute('type')],
+            [w => Promise.resolve(typeof data.converter == 'function' ? data.converter(data.value) : data.value)],
             // custom fill in value
-            w => new Promise((resolve, reject) => {
+            [w => new Promise((resolve, reject) => {
                 const f = () => {
                     if (typeof data.onfill == 'function') {
-                        data.onfill(w.getRes(0), w.getRes(3))
+                        data.onfill(w.getRes(0)[0], w.getRes(5))
                             .then(() => resolve(false))
                             .catch(err => reject(err));
                     } else {
@@ -278,7 +278,7 @@ class WebRobot {
                     }
                 }
                 if (typeof data.canfill == 'function') {
-                    data.canfill(w.getRes(1), w.getRes(0), w.getRes(3))
+                    data.canfill(w.getRes(3), w.getRes(0)[0], w.getRes(5))
                         .then(result => {
                             if (result) {
                                 resolve(false);
@@ -290,19 +290,19 @@ class WebRobot {
                 } else {
                     f();
                 }
-            }),
+            })],
             // select
-            [w => this.fillSelect(w.getRes(0), w.getRes(3)),
-                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.SELECT],
+            [w => this.fillSelect(w.getRes(0)[0], w.getRes(5)),
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.SELECT],
             // checkbox
-            [w => this.fillCheckbox(w.getRes(0), w.getRes(3)),
-                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.CHECKBOX],
+            [w => this.fillCheckbox(w.getRes(0)[0], w.getRes(5)),
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.CHECKBOX],
             // radio
-            [w => this.fillRadio(w.getRes(0), w.getRes(3)),
-                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.RADIO],
+            [w => this.fillRadio(w.getRes(0)[0], w.getRes(5)),
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.RADIO],
             // other inputs
-            [w => this.fillInput(w.getRes(0), w.getRes(3)),
-                w => w.getRes(4) && this.getInputType(w.getRes(1), w.getRes(2)) == this.OTHER],
+            [w => this.fillInput(w.getRes(0)[0], w.getRes(5)),
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.OTHER],
         ]);
     }
 
@@ -354,9 +354,9 @@ class WebRobot {
             const q = new Queue(fields, (name) => {
                 const next = () => q.next();
                 Work.works([
-                    w => form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]')),
-                    w => w.res.getAttribute('type'),
-                    w => w.pres.getAttribute(w.res == 'checkbox' ? 'checked' : 'value'),
+                    [w => form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]'))],
+                    [w => w.res.getAttribute('type')],
+                    [w => w.pres.getAttribute(w.res == 'checkbox' ? 'checked' : 'value')],
                 ])
                 .then(value => {
                     values[name] = value;
@@ -384,21 +384,21 @@ class WebRobot {
 
     click(data) {
         return Work.works([
-            w => this.findElement(data),
-            w => w.res.click(),
+            [w => this.findElement(data)],
+            [w => w.res.click()],
         ]);
     }
 
     waitFor(data) {
         return Work.works([
-            w => this.getDriver().wait(until.elementLocated(data), this.timeout),
+            [w => this.getDriver().wait(until.elementLocated(data), this.timeout)],
         ]);
     }
 
     waitAndClick(data) {
         return Work.works([
-            w => this.waitFor(data),
-            w => w.res.click(),
+            [w => this.waitFor(data)],
+            [w => w.res.click()],
         ]);
     }
 
@@ -410,8 +410,8 @@ class WebRobot {
             const result = [];
             const q = new Queue(items, item => {
                 Work.works([
-                    w => parent.findElement(item),
-                    w => w.res.getAttribute('innerText'),
+                    [w => parent.findElement(item)],
+                    [w => w.res.getAttribute('innerText')],
                 ])
                 .then(text => {
                     result.push(text);
