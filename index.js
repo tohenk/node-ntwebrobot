@@ -214,36 +214,40 @@ class WebRobot {
                     if (data.parent == undefined && data.target.using == 'xpath' && data.target.value.substring(0, 1) == '.') {
                         data.parent = w.getRes(0);
                     }
-                    Work.works([
-                        [w => this.sleep(this.wait), w => data.wait],
-                        [w => new Promise((resolve, reject) => {
-                            this.findElement(data.parent)
-                                .then(res => {
-                                    data.parent = res;
-                                    resolve();
-                                })
-                                .catch(err => reject(err))
-                            ;
-                        }), w => data.parent instanceof By],
-                        [w => new Promise((resolve, reject) => {
-                            this.fillFormValue(data)
-                                .then(() => next())
-                                .catch(err => {
-                                    // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
-                                    const d = Object.keys(data)
-                                        .filter(key => key != 'handler')
-                                        .reduce((obj, key) => {
-                                            obj[key] = data[key];
-                                            return obj;
-                                        }, {});
-                                    console.error('Unable to fill form value %s: %s!', util.inspect(d), err);
-                                    reject(err);
-                                })
-                            ;
-                        })],
-                    ])
-                    .then(() => next())
-                    .catch(err => reject(err));
+                    data.handler = () => {
+                        Work.works([
+                            [w => this.sleep(this.wait), w => data.wait],
+                            [w => new Promise((resolve, reject) => {
+                                this.findElement(data.parent)
+                                    .then(res => {
+                                        data.parent = res;
+                                        resolve();
+                                    })
+                                    .catch(err => reject(err))
+                                ;
+                            }), w => data.parent instanceof By],
+                            [w => new Promise((resolve, reject) => {
+                                this.fillFormValue(data)
+                                    .then(() => next())
+                                    .catch(err => {
+                                        // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
+                                        const d = Object.keys(data)
+                                            .filter(key => key != 'handler')
+                                            .reduce((obj, key) => {
+                                                obj[key] = data[key];
+                                                return obj;
+                                            }, {});
+                                        console.error('Unable to fill form value %s: %s!', util.inspect(d), err);
+                                        reject(err);
+                                    })
+                                ;
+                            })],
+                        ])
+                        .then(() => next())
+                        .catch(err => reject(err));
+                    }
+                    // call handler
+                    data.handler();
                 });
                 q.once('done', () => {
                     Work.works([
