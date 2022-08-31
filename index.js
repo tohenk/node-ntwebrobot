@@ -228,17 +228,25 @@ class WebRobot {
                             }), w => data.parent instanceof By],
                             [w => new Promise((resolve, reject) => {
                                 this.fillFormValue(data)
-                                    .then(() => next())
+                                    .then(() => resolve())
                                     .catch(err => {
-                                        // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
-                                        const d = Object.keys(data)
-                                            .filter(key => key != 'handler')
-                                            .reduce((obj, key) => {
-                                                obj[key] = data[key];
-                                                return obj;
-                                            }, {});
-                                        console.error('Unable to fill form value %s: %s!', util.inspect(d), err);
-                                        reject(err);
+                                        Work.works([
+                                            [w => data.el.getAttribute('outerHTML'), w => data.el],
+                                            [w => new Promise((resolve, reject) => {
+                                                // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
+                                                const d = Object.keys(data)
+                                                    .filter(key => key != 'handler')
+                                                    .reduce((obj, key) => {
+                                                        obj[key] = data[key];
+                                                        return obj;
+                                                    }, {});
+                                                resolve(util.inspect(d));
+                                            }), w => !data.el],
+                                        ])
+                                        .then(target => {
+                                            console.error('Unable to fill form value %s: %s!', target, err);
+                                            reject(err);
+                                        });
                                     })
                                 ;
                             })],
@@ -272,6 +280,7 @@ class WebRobot {
             [w => Promise.resolve(typeof data.converter == 'function' ? data.converter(data.value) : data.value)],
             // custom fill in value
             [w => new Promise((resolve, reject) => {
+                data.el = w.getRes(0)[0];
                 const f = () => {
                     if (typeof data.onfill == 'function') {
                         data.onfill(w.getRes(0)[0], w.getRes(5))
