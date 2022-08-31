@@ -24,7 +24,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const util = require('util');
 const { Builder, By, until } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 
@@ -201,6 +200,7 @@ class WebRobot {
     fillInForm(values, form, submit) {
         return Work.works([
             [w => this.waitFor(form)],
+            [w => this.getDriver().wait(until.elementIsVisible(w.getRes(0)))],
             [w => new Promise((resolve, reject) => {
                 const q = new Queue(values, data => {
                     const next = () => {
@@ -232,16 +232,7 @@ class WebRobot {
                                     .catch(err => {
                                         Work.works([
                                             [w => data.el.getAttribute('outerHTML'), w => data.el],
-                                            [w => new Promise((resolve, reject) => {
-                                                // https://stackoverflow.com/questions/38750705/filter-object-properties-by-key-in-es6
-                                                const d = Object.keys(data)
-                                                    .filter(key => key != 'handler')
-                                                    .reduce((obj, key) => {
-                                                        obj[key] = data[key];
-                                                        return obj;
-                                                    }, {});
-                                                resolve(util.inspect(d));
-                                            }), w => !data.el],
+                                            [w => Promise.resolve(data.target), w => !data.el],
                                         ])
                                         .then(target => {
                                             console.error('Unable to fill form value %s: %s!', target, err);
