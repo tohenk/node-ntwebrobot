@@ -28,6 +28,7 @@ const { Builder, By, until } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 
 let operaService;
+const expectedErrors = [];
 
 class WebRobot {
 
@@ -162,6 +163,18 @@ class WebRobot {
         return builder.build();
     }
 
+    works(w, options) {
+        options = options || {};
+        if (!options.onerror) {
+            options.onerror = w => {
+                if (WebRobot.isErr(w.err)) {
+                    console.error('Got error doing %s: %s', w.current.info, w.err);
+                }
+            }
+        }
+        return Work.works(w, options);
+    }
+
     sleep(ms) {
         return this.getDriver().sleep(ms ? ms : this.wait);
     }
@@ -170,7 +183,7 @@ class WebRobot {
         if (this.opened && this.driver) {
             return Promise.resolve();
         }
-        return Work.works([
+        return this.works([
             [w => this.getDriver().get(this.url)],
             [w => new Promise((resolve, reject) => {
                 this.opened = true;
@@ -186,7 +199,7 @@ class WebRobot {
         if (!this.driver) {
             return Promise.resolve();
         }
-        return Work.works([
+        return this.works([
             [w => this.getDriver().quit()],
         ], {
             done: () => new Promise((resolve, reject) => {
@@ -198,7 +211,7 @@ class WebRobot {
     }
 
     fillInForm(values, form, submit) {
-        return Work.works([
+        return this.works([
             [w => this.waitFor(form)],
             [w => this.getDriver().wait(until.elementIsVisible(w.getRes(0)))],
             [w => new Promise((resolve, reject) => {
@@ -215,7 +228,7 @@ class WebRobot {
                         data.parent = w.getRes(0);
                     }
                     data.handler = () => {
-                        Work.works([
+                        this.works([
                             [w => this.sleep(this.wait), w => data.wait],
                             [w => new Promise((resolve, reject) => {
                                 this.findElement(data.parent)
@@ -230,7 +243,7 @@ class WebRobot {
                                 this.fillFormValue(data)
                                     .then(() => resolve())
                                     .catch(err => {
-                                        Work.works([
+                                        this.works([
                                             [w => data.el.getAttribute('outerHTML'), w => data.el],
                                             [w => Promise.resolve(data.target), w => !data.el],
                                         ])
@@ -249,7 +262,7 @@ class WebRobot {
                     data.handler();
                 });
                 q.once('done', () => {
-                    Work.works([
+                    this.works([
                         [w => this.findElement(submit), w => submit],
                         [w => w.getRes(0).click(), w => submit],
                         [w => Promise.resolve()],
@@ -262,7 +275,7 @@ class WebRobot {
     }
 
     fillFormValue(data) {
-        return Work.works([
+        return this.works([
             [w => Promise.resolve(data.parent ? data.parent.findElements(data.target): this.findElements(data.target))],
             [w => Promise.reject('Element not found!'), w => w.getRes(0).length == 0],
             [w => Promise.reject('Multi elements found!'), w => w.getRes(0).length > 1],
@@ -328,25 +341,25 @@ class WebRobot {
     }
 
     fillSelect(el, value) {
-        return Work.works([
+        return this.works([
             [w => this.click({el: el, data: By.xpath('//option[@value="' + value + '"]')})],
         ]);
     }
 
     fillCheckbox(el, value) {
-        return Work.works([
+        return this.works([
             [w => el.click(), w => el.isSelected() != value],
         ]);
     }
 
     fillRadio(el, value) {
-        return Work.works([
+        return this.works([
             [w => el.click()],
         ]);
     }
 
     fillInput(el, value) {
-        return Work.works([
+        return this.works([
             [w => el.clear()],
             [w => el.sendKeys(value), w => null != value],
         ]);
@@ -357,7 +370,7 @@ class WebRobot {
             const values = {};
             const q = new Queue(fields, (name) => {
                 const next = () => q.next();
-                Work.works([
+                this.works([
                     [w => form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]'))],
                     [w => w.res.getAttribute('type')],
                     [w => w.pres.getAttribute(w.res == 'checkbox' ? 'checked' : 'value')],
@@ -387,22 +400,24 @@ class WebRobot {
     }
 
     click(data) {
-        return Work.works([
+        return this.works([
             [w => this.findElement(data)],
-            [w => w.res.click()],
+            [w => w.getRes(0).click()],
+            [w => Promise.resolve(w.getRes(0))],
         ]);
     }
 
     waitFor(data) {
-        return Work.works([
+        return this.works([
             [w => this.getDriver().wait(until.elementLocated(data), this.timeout)],
         ]);
     }
 
     waitAndClick(data) {
-        return Work.works([
+        return this.works([
             [w => this.waitFor(data)],
-            [w => w.res.click()],
+            [w => w.getRes(0).click()],
+            [w => Promise.resolve(w.getRes(0))],
         ]);
     }
 
@@ -413,7 +428,7 @@ class WebRobot {
         return new Promise((resolve, reject) => {
             const result = [];
             const q = new Queue(items, item => {
-                Work.works([
+                this.works([
                     [w => parent.findElement(item)],
                     [w => w.res.getAttribute('innerText')],
                 ])
@@ -429,6 +444,25 @@ class WebRobot {
 
     alert(message) {
         return this.getDriver().executeScript('alert("' + message + '")');
+    }
+
+    static isErr(err) {
+        let result = err ? true : false;
+        if (result) {
+            expectedErrors.forEach(e => {
+                if (err instanceof e) {
+                    result = false;
+                    return true;
+                }
+            });
+        }
+        return result;
+    }
+
+    static expectErr(err) {
+        if (expectedErrors.indexOf(err) < 0) {
+            expectedErrors.push(err);
+        }
     }
 }
 
