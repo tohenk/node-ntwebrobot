@@ -1,6 +1,6 @@
 {
   "name": "@ntlab/webrobot",
-  "version": "1.4.10",
+  "version": "1.4.11",
   "description": "A webrobot based on Selenium",
   "main": "index.js",
   "scripts": {

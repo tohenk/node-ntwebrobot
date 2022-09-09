@@ -167,7 +167,7 @@ class WebRobot {
         options = options || {};
         if (!options.onerror) {
             options.onerror = w => {
-                if (WebRobot.isErr(w.err)) {
+                if (w.err instanceof Error && WebRobot.isErr(w.err)) {
                     console.error('Got error doing %s: %s', w.current.info, w.err);
                 }
             }
