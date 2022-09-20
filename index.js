@@ -29,6 +29,7 @@ const { Queue, Work } = require('@ntlab/work');
 
 let operaService;
 const expectedErrors = [];
+const loggedErrors = [];
 
 class WebRobot {
 
@@ -168,7 +169,12 @@ class WebRobot {
         if (!options.onerror) {
             options.onerror = w => {
                 if (w.err instanceof Error && WebRobot.isErr(w.err)) {
-                    console.error('Got error doing %s: %s', w.current.info, w.err);
+                    if (loggedErrors.indexOf(w.err) < 0) {
+                        loggedErrors.push(w.err);
+                        console.error('Got error doing %s!\n%s', w.current.info, w.err);
+                    } else {
+                        console.error('-> %s', w.current.info);
+                    }
                 }
             }
         }
@@ -229,8 +235,8 @@ class WebRobot {
                     }
                     data.handler = () => {
                         this.works([
-                            [w => this.sleep(this.wait), w => data.wait],
-                            [w => new Promise((resolve, reject) => {
+                            [x => this.sleep(this.wait), x => data.wait],
+                            [x => new Promise((resolve, reject) => {
                                 this.findElement(data.parent)
                                     .then(res => {
                                         data.parent = res;
@@ -238,17 +244,17 @@ class WebRobot {
                                     })
                                     .catch(err => reject(err))
                                 ;
-                            }), w => data.parent instanceof By],
-                            [w => new Promise((resolve, reject) => {
+                            }), x => data.parent instanceof By],
+                            [x => new Promise((resolve, reject) => {
                                 this.fillFormValue(data)
                                     .then(() => resolve())
                                     .catch(err => {
                                         this.works([
-                                            [w => data.el.getAttribute('outerHTML'), w => data.el],
-                                            [w => Promise.resolve(data.target), w => !data.el],
+                                            [x => data.el.getAttribute('outerHTML'), x => data.el],
+                                            [x => Promise.resolve(data.target), x => !data.el],
                                         ])
                                         .then(target => {
-                                            console.error('Unable to fill form value %s: %s!', target, err);
+                                            console.error('Unable to fill form value %s: %s!', target, err instanceof Error ? err.toString() : err);
                                             reject(err);
                                         });
                                     })
@@ -263,11 +269,11 @@ class WebRobot {
                 });
                 q.once('done', () => {
                     this.works([
-                        [w => this.findElement(submit), w => submit],
-                        [w => w.getRes(0).click(), w => submit],
-                        [w => Promise.resolve()],
+                        [x => this.findElement(submit), x => submit],
+                        [x => x.getRes(0).click(), x => submit],
+                        [x => Promise.resolve(submit ? x.getRes(0) : w.getRes(0))],
                     ])
-                    .then(() => resolve())
+                    .then(res => resolve(res))
                     .catch(err => reject(err));
                 });
             })],
