@@ -109,7 +109,10 @@ class WebRobot {
                     options.addArguments('start-maximized');
                     options.addArguments('user-data-dir=' + profile);
                     if (downloaddir) {
-                        options.setUserPreferences({'download.default_directory': downloaddir});
+                        options.setUserPreferences({
+                            'download.default_directory': downloaddir,
+                            'profile.default_content_setting_values.automatic_downloads': 1,
+                        });
                     }
                     break;
                 case this.FIREFOX:
