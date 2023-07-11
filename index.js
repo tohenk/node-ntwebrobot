@@ -176,7 +176,20 @@ class WebRobot {
                         loggedErrors.push(w.err);
                         console.error('Got error doing %s!\n%s', w.current.info, w.err);
                     } else {
-                        console.error('-> %s', w.current.info);
+                        let lines = w.current.info.split('\n');
+                        let indent = 0;
+                        lines.forEach(line => {
+                            const match = line.match(/^\s+/);
+                            if (match) {
+                                if (indent === 0 || match[0].length < indent) {
+                                    indent = match[0].length;
+                                }
+                            }
+                        });
+                        if (indent > 0) {
+                            lines = lines.map(line => line.substr(0, indent) === ' '.repeat(indent) ? line.substr(indent - 3) : line);
+                        }
+                        console.error('-> %s', lines.join('\n'));
                     }
                 }
             }
