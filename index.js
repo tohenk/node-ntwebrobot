@@ -232,7 +232,7 @@ class WebRobot {
         });
     }
 
-    fillInForm(values, form, submit) {
+    fillInForm(values, form, submit, wait = 0) {
         return this.works([
             [w => this.waitFor(form)],
             [w => this.getDriver().wait(until.elementIsVisible(w.getRes(0)))],
@@ -285,9 +285,10 @@ class WebRobot {
                 });
                 q.once('done', () => {
                     this.works([
+                        [x => this.sleep(wait), x => submit && wait > 0],
                         [x => this.findElement(submit), x => submit],
-                        [x => x.getRes(0).click(), x => submit],
-                        [x => Promise.resolve(submit ? x.getRes(0) : w.getRes(0))],
+                        [x => x.getRes(1).click(), x => submit],
+                        [x => Promise.resolve(submit ? x.getRes(1) : w.getRes(0))],
                     ])
                     .then(res => resolve(res))
                     .catch(err => reject(err));
