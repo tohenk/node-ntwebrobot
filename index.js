@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  *
- * Copyright (c) 2021-2022 Toha <tohenk@yahoo.com>
+ * Copyright (c) 2021-2023 Toha <tohenk@yahoo.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -79,7 +79,7 @@ class WebRobot {
                         if (ff.indexOf(' ') > 0) ff = `"${ff}"`;
                         // https://developer.mozilla.org/en-US/docs/Mozilla/Command_Line_Options#User_Profile
                         const p = exec(`${ff} -CreateProfile "${profileName} ${profile}" -no-remote`);
-                        p.on('close', (code) => {
+                        p.on('close', code => {
                             console.log('Mozilla Firefox create profile returns %d', code);
                             f();
                         });
@@ -107,7 +107,7 @@ class WebRobot {
                     const ChromeOptions = require('selenium-webdriver/chrome').Options;
                     options = new ChromeOptions();
                     options.addArguments('start-maximized');
-                    options.addArguments('user-data-dir=' + profile);
+                    options.addArguments(`user-data-dir=${profile}`);
                     if (downloaddir) {
                         options.setUserPreferences({
                             'download.default_directory': downloaddir,
@@ -123,6 +123,9 @@ class WebRobot {
                         options.setPreference('browser.download.dir', downloaddir);
                     }
                     break;
+            }
+            if (this.options.headless) {
+                options.addArguments(`headless=${this.options.headless}`);
             }
             this.driver = this.createDriver(options);
             // opera doesn't honor download.default_directory
