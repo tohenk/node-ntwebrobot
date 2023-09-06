@@ -225,7 +225,7 @@ class WebRobot {
             return Promise.resolve();
         }
         return this.works([
-            [w => this.getDriver().quit()],
+            [w => this.driver.quit()],
         ], {
             done: () => new Promise((resolve, reject) => {
                 this.driver = null;
