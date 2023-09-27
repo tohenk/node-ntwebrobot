@@ -396,7 +396,7 @@ class WebRobot {
         return this.works([
             [w => el.clear()],
             [w => el.sendKeys(value), w => null != value && !textAreaSafe],
-            [w => this.getDriver().executeScript(`arguments[0].value = arguments[1]`, el, value), w => null != value && textAreaSafe],
+            [w => this.getDriver().executeScript(`arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));`, el, value), w => null != value && textAreaSafe],
         ]);
     }
 
