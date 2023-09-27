@@ -40,7 +40,8 @@ class WebRobot {
     SELECT = 1
     CHECKBOX = 2
     RADIO = 3
-    OTHER = 4
+    TEXTAREA = 4
+    OTHER = 5
 
     constructor(options) {
         this.options = options || {};
@@ -269,8 +270,8 @@ class WebRobot {
                                     .then(() => resolve())
                                     .catch(err => {
                                         this.works([
-                                            [x => data.el.getAttribute('outerHTML'), x => data.el],
-                                            [x => Promise.resolve(data.target), x => !data.el],
+                                            [y => data.el.getAttribute('outerHTML'), y => data.el],
+                                            [y => Promise.resolve(data.target), y => !data.el],
                                         ])
                                         .then(target => {
                                             console.error('Unable to fill form value %s: %s!', target, err instanceof Error ? err.toString() : err);
@@ -343,6 +344,9 @@ class WebRobot {
             // radio
             [w => this.fillRadio(w.getRes(0)[0], w.getRes(5)),
                 w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.RADIO],
+            // textarea
+            [w => this.fillTextarea(w.getRes(0)[0], w.getRes(5)),
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.TEXTAREA],
             // other inputs
             [w => this.fillInput(w.getRes(0)[0], w.getRes(5)),
                 w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.OTHER],
@@ -361,6 +365,9 @@ class WebRobot {
                 break;
             case 'select':
                 input = this.SELECT;
+                break;
+            case 'textarea':
+                input = this.TEXTAREA;
                 break;
         }
         return input;
@@ -384,6 +391,15 @@ class WebRobot {
         ]);
     }
 
+    fillTextarea(el, value) {
+        const textAreaSafe = value && value.indexOf('/') >= 0;
+        return this.works([
+            [w => el.clear()],
+            [w => el.sendKeys(value), w => null != value && !textAreaSafe],
+            [w => this.getDriver().executeScript(`arguments[0].value = arguments[1]`, el, value), w => null != value && textAreaSafe],
+        ]);
+    }
+
     fillInput(el, value) {
         return this.works([
             [w => el.clear()],
@@ -394,7 +410,7 @@ class WebRobot {
     getFormValues(form, fields, useId = false) {
         return new Promise((resolve, reject) => {
             const values = {};
-            const q = new Queue(fields, (name) => {
+            const q = new Queue(fields, name => {
                 const next = () => q.next();
                 this.works([
                     [w => form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]'))],
