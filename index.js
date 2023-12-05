@@ -24,13 +24,45 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Builder, By, until } = require('selenium-webdriver');
+const { Builder, By, until, WebDriver, WebElement } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 
 let operaService;
 const expectedErrors = [];
 const loggedErrors = [];
 
+/**
+ * A form field value converter callback.
+ *
+ * @callback valueConverterCallback
+ * @param {string} value Value
+ * @returns {string}
+ */
+
+/**
+ * A form field value fill callback.
+ *
+ * @callback valueFillCallback
+ * @param {WebElement} el Element
+ * @param {string} value Value
+ * @returns {Promise}
+ */
+
+/**
+ * A form field value can fill callback. The callback must return true if its handled.
+ *
+ * @callback valueCanFillCallback
+ * @param {string} tag Element tag name
+ * @param {WebElement} el Element
+ * @param {string} value Value
+ * @returns {Promise<boolean>}
+ */
+
+/**
+ * A base class for Selenium automation.
+ *
+ * @author Toha <tohenk@yahoo.com>
+ */
 class WebRobot {
 
     CHROME = 'chrome'
@@ -43,6 +75,17 @@ class WebRobot {
     TEXTAREA = 4
     OTHER = 5
 
+    /**
+     * Constructor.
+     *
+     * @param {object} options Constructor options
+     * @param {string} options.workdir Working directory
+     * @param {string} options.browser Browser to use, can be chrome, firefox or opera
+     * @param {string} options.session Session name
+     * @param {string} options.url Default url for open
+     * @param {number} options.timeout Operation timeout (ms)
+     * @param {number} options.wait Wait delay (ms)
+     */
     constructor(options) {
         this.options = options || {};
         this.workdir = this.options.workdir || __dirname;
@@ -57,27 +100,35 @@ class WebRobot {
         this.setup();
     }
 
+    /**
+     * Do initialization.
+     */
     initialize() {
     }
 
+    /**
+     * Do setup.
+     */
     setup() {
         const f = () => {
             this.ready = true;
-            if (typeof this.onready == 'function') {
-                this.onready();
+            if (typeof this.onReady === 'function') {
+                this.onReady();
             }
         }
-        if (this.browser == this.FIREFOX) {
+        if (this.browser === this.FIREFOX) {
             const profile = this.getProfileDir();
             if (!fs.existsSync(profile)) {
                 const Channel = require('selenium-webdriver/firefox').Channel;
                 Channel.RELEASE.locate()
-                    .then((ff) => {
+                    .then(ff => {
                         const shasum = require('crypto').createHash('sha1');
                         shasum.update(fs.realpathSync(path.join(__dirname, '..')) + new Date().getTime());
                         const profileName = 'WebRobot.' + shasum.digest('hex').substr(0, 8);
                         const exec = require('child_process').exec;
-                        if (ff.indexOf(' ') > 0) ff = `"${ff}"`;
+                        if (ff.indexOf(' ') > 0) {
+                            ff = `"${ff}"`;
+                        }
                         // https://developer.mozilla.org/en-US/docs/Mozilla/Command_Line_Options#User_Profile
                         const p = exec(`${ff} -CreateProfile "${profileName} ${profile}" -no-remote`);
                         p.on('close', code => {
@@ -94,6 +145,11 @@ class WebRobot {
         }
     }
 
+    /**
+     * Get web driver.
+     *
+     * @returns {WebDriver}
+     */
     getDriver() {
         if (!this.driver) {
             if (this.browsers.indexOf(this.browser) < 0) {
@@ -130,13 +186,18 @@ class WebRobot {
             }
             this.driver = this.createDriver(options);
             // opera doesn't honor download.default_directory
-            if (downloaddir && this.browser == this.OPERA) {
+            if (downloaddir && this.browser === this.OPERA) {
                 this.driver.setDownloadPath(downloaddir);
             }
         }
         return this.driver;
     }
 
+    /**
+     * Get browser profile directory.
+     *
+     * @returns {string}
+     */
     getProfileDir() {
         const profiledir = path.join(this.workdir, 'profile');
         if (!fs.existsSync(profiledir)) {
@@ -145,6 +206,12 @@ class WebRobot {
         return path.join(profiledir, this.browser + (this.session ? '-' + this.session : ''));
     }
 
+    /**
+     * Create web driver.
+     *
+     * @param {object} options Browser options
+     * @returns {WebDriver}
+     */
     createDriver(options) {
         let builder;
         switch (this.browser) {
@@ -153,11 +220,11 @@ class WebRobot {
                 builder = new Builder()
                     .forBrowser(this.CHROME)
                     .setChromeOptions(options);
-                if (this.browser == this.OPERA) {
+                if (this.browser === this.OPERA) {
                     if (!operaService) {
                         const { ServiceBuilder } = require('selenium-webdriver/chrome');
                         const { findInPath } = require('selenium-webdriver/io');
-                        operaService = new ServiceBuilder(findInPath(process.platform == 'win32' ? 'operadriver.exe' : 'operadriver', true));
+                        operaService = new ServiceBuilder(findInPath(process.platform === 'win32' ? 'operadriver.exe' : 'operadriver', true));
                     }
                     builder.setChromeService(operaService);
                 }
@@ -171,6 +238,14 @@ class WebRobot {
         return builder.build();
     }
 
+    /**
+     * A proxy function for Work.works.
+     *
+     * @param {Array} w Work list
+     * @param {object} options Work options
+     * @returns {Promise}
+     * @see Work.works
+     */
     works(w, options) {
         options = options || {};
         if (!options.onerror) {
@@ -201,26 +276,47 @@ class WebRobot {
         return Work.works(w, options);
     }
 
+    /**
+     * Sleep for milliseconds.
+     *
+     * @param {number|undefined} ms Milliseconds to sleep
+     * @returns {Promise}
+     */
     sleep(ms) {
-        return this.getDriver().sleep(ms ? ms : this.wait);
+        return this.getDriver().sleep(ms !== undefined ? ms : this.wait);
     }
 
-    open() {
-        if (this.opened && this.driver) {
+    /**
+     * Open an url.
+     *
+     * @param {string|undefined} url Url to open using get
+     * @returns {Promise}
+     */
+    open(url) {
+        url = url || this.url;
+        if (this._url === url && this.driver) {
             return Promise.resolve();
         }
         return this.works([
-            [w => this.getDriver().get(this.url)],
+            [w => this.getDriver().get(url)],
             [w => new Promise((resolve, reject) => {
-                this.opened = true;
-                if (this.browser == this.FIREFOX) {
+                this._url = url;
+                if (this.browser === this.FIREFOX) {
                     this.getDriver().manage().window().maximize();
+                }
+                if (typeof this.onOpen === 'function') {
+                    this.onOpen();
                 }
                 resolve();
             })],
         ]);
     }
 
+    /**
+     * Close and destroy web driver.
+     *
+     * @returns {Promise}
+     */
     close() {
         if (!this.driver) {
             return Promise.resolve();
@@ -229,13 +325,22 @@ class WebRobot {
             [w => this.driver.quit()],
         ], {
             done: () => new Promise((resolve, reject) => {
-                this.driver = null;
-                this.opened = false;
+                delete this.driver;
+                delete this._url;
                 resolve();
             })
         });
     }
 
+    /**
+     * Do fill in form.
+     *
+     * @param {Array} values Form values
+     * @param {WebElement} form Form element
+     * @param {WebElement} submit Submit element
+     * @param {number} wait Wait milliseconds
+     * @returns {Promise}
+     */
     fillInForm(values, form, submit, wait = 0) {
         return this.works([
             [w => this.waitFor(form)],
@@ -243,14 +348,14 @@ class WebRobot {
             [w => new Promise((resolve, reject) => {
                 const q = new Queue(values, data => {
                     const next = () => {
-                        if (typeof data.done == 'function') {
+                        if (typeof data.done === 'function') {
                             data.done(data, () => q.next());
                         } else {
                             q.next();
                         }
                     }
                     // set parent if target is a relative path
-                    if (data.parent == undefined && data.target.using == 'xpath' && data.target.value.substring(0, 1) == '.') {
+                    if (data.parent === undefined && data.target.using === 'xpath' && data.target.value.startWith('.')) {
                         data.parent = w.getRes(0);
                     }
                     data.handler = () => {
@@ -301,19 +406,31 @@ class WebRobot {
         ]);
     }
 
+    /**
+     * Do form field fill in.
+     *
+     * @param {object} data Form value data
+     * @param {WebElement} data.parent Parent element
+     * @param {By} data.target Field element
+     * @param {string} data.value Field value
+     * @param {valueConverterCallback} data.converter Value converter callback
+     * @param {valueFillCallback} data.onfill Value fill callback
+     * @param {valueCanFillCallback} data.canfill Value can fill callback
+     * @returns {Promise}
+     */
     fillFormValue(data) {
         return this.works([
             [w => Promise.resolve(data.parent ? data.parent.findElements(data.target): this.findElements(data.target))],
-            [w => Promise.reject('Element not found!'), w => w.getRes(0).length == 0],
+            [w => Promise.reject('Element not found!'), w => w.getRes(0).length === 0],
             [w => Promise.reject('Multi elements found!'), w => w.getRes(0).length > 1],
             [w => w.getRes(0)[0].getTagName()],
             [w => w.getRes(0)[0].getAttribute('type')],
-            [w => Promise.resolve(typeof data.converter == 'function' ? data.converter(data.value) : data.value)],
+            [w => Promise.resolve(typeof data.converter === 'function' ? data.converter(data.value) : data.value)],
             // custom fill in value
             [w => new Promise((resolve, reject) => {
                 data.el = w.getRes(0)[0];
                 const f = () => {
-                    if (typeof data.onfill == 'function') {
+                    if (typeof data.onfill === 'function') {
                         data.onfill(w.getRes(0)[0], w.getRes(5))
                             .then(() => resolve(false))
                             .catch(err => reject(err));
@@ -321,7 +438,7 @@ class WebRobot {
                         resolve(true);
                     }
                 }
-                if (typeof data.canfill == 'function') {
+                if (typeof data.canfill === 'function') {
                     data.canfill(w.getRes(3), w.getRes(0)[0], w.getRes(5))
                         .then(result => {
                             if (result) {
@@ -337,29 +454,37 @@ class WebRobot {
             })],
             // select
             [w => this.fillSelect(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.SELECT],
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.SELECT],
             // checkbox
             [w => this.fillCheckbox(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.CHECKBOX],
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.CHECKBOX],
             // radio
             [w => this.fillRadio(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.RADIO],
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.RADIO],
             // textarea
             [w => this.fillTextarea(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.TEXTAREA],
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.TEXTAREA],
             // other inputs
             [w => this.fillInput(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) == this.OTHER],
+                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.OTHER],
         ]);
     }
 
+    /**
+     * Get input type. Input type returned will be one of SELECT, CHECKBOX, RADIO,
+     * TEXTAREA, or OTHER.
+     *
+     * @param {string} tag Element tag name
+     * @param {string} type Element type
+     * @returns {number}
+     */
     getInputType(tag, type) {
         let input = this.OTHER;
         switch (tag) {
             case 'input':
-                if (type == 'checkbox') {
+                if (type === 'checkbox') {
                     input = this.CHECKBOX;
-                } else if (type == 'radio') {
+                } else if (type === 'radio') {
                     input = this.RADIO;
                 }
                 break;
@@ -373,49 +498,92 @@ class WebRobot {
         return input;
     }
 
+    /**
+     * Fill a select element.
+     *
+     * @param {WebElement} el Input element
+     * @param {string} value Input value
+     * @returns {Promise}
+     */
     fillSelect(el, value) {
         return this.works([
-            [w => this.click({el: el, data: By.xpath('//option[@value="' + value + '"]')})],
+            [w => this.click({el: el, data: By.xpath(`//option[@value="${value}"]`)})],
         ]);
     }
 
+    /**
+     * Fill a checkbox element.
+     *
+     * @param {WebElement} el Input element
+     * @param {boolean} value Input value
+     * @returns {Promise}
+     */
     fillCheckbox(el, value) {
         return this.works([
             [w => el.click(), w => el.isSelected() != value],
         ]);
     }
 
+    /**
+     * Fill a radio element.
+     *
+     * @param {WebElement} el Input element
+     * @param {boolean} value Input value
+     * @returns {Promise}
+     */
     fillRadio(el, value) {
         return this.works([
             [w => el.click()],
         ]);
     }
 
+    /**
+     * Fill a textarea element.
+     *
+     * @param {WebElement} el Input element
+     * @param {string} value Input value
+     * @returns {Promise}
+     */
     fillTextarea(el, value) {
         const textAreaSafe = value && value.indexOf('/') >= 0;
         return this.works([
             [w => el.clear()],
-            [w => el.sendKeys(value), w => null != value && !textAreaSafe],
-            [w => this.getDriver().executeScript(`arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));`, el, value), w => null != value && textAreaSafe],
+            [w => el.sendKeys(value), w => null !== value && !textAreaSafe],
+            [w => this.getDriver().executeScript(`arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));`, el, value), w => null !== value && textAreaSafe],
         ]);
     }
 
+    /**
+     * Fill an input element.
+     *
+     * @param {WebElement} el Input element
+     * @param {string} value Input value
+     * @returns {Promise}
+     */
     fillInput(el, value) {
         return this.works([
             [w => el.clear()],
-            [w => el.sendKeys(value), w => null != value],
+            [w => el.sendKeys(value), w => null !== value],
         ]);
     }
 
+    /**
+     * Get form values.
+     *
+     * @param {WebElement} form Form element
+     * @param {Array} fields Form fields
+     * @param {boolean} useId Use element id instead of xpath
+     * @returns {Promise<object>}
+     */
     getFormValues(form, fields, useId = false) {
         return new Promise((resolve, reject) => {
             const values = {};
             const q = new Queue(fields, name => {
                 const next = () => q.next();
                 this.works([
-                    [w => form.findElement(useId ? By.id(name) : By.xpath('//*[@name="' + name + '"]'))],
+                    [w => form.findElement(useId ? By.id(name) : By.xpath(`//*[@name="${name}"]`))],
                     [w => w.res.getAttribute('type')],
-                    [w => w.pres.getAttribute(w.res == 'checkbox' ? 'checked' : 'value')],
+                    [w => w.pres.getAttribute(w.res === 'checkbox' ? 'checked' : 'value')],
                 ])
                 .then(value => {
                     values[name] = value;
@@ -427,6 +595,14 @@ class WebRobot {
         });
     }
 
+    /**
+     * Find elements.
+     *
+     * @param {object|By} data Selector
+     * @param {WebElement} data.el Parent element
+     * @param {By} data.data Selector
+     * @returns {Promise<WebElement[]>}
+     */
     findElements(data) {
         if (data.el && data.data) {
             return data.el.findElements(data.data);
@@ -434,6 +610,14 @@ class WebRobot {
         return this.getDriver().findElements(data);
     }
 
+    /**
+     * Find element.
+     *
+     * @param {object|By} data Selector
+     * @param {WebElement} data.el Parent element
+     * @param {By} data.data Selector
+     * @returns {Promise<WebElement>}
+     */
     findElement(data) {
         if (data.el && data.data) {
             return data.el.findElement(data.data);
@@ -441,6 +625,14 @@ class WebRobot {
         return this.getDriver().findElement(data);
     }
 
+    /**
+     * Perform click.
+     *
+     * @param {object|By} data Selector
+     * @param {WebElement} data.el Parent element
+     * @param {By} data.data Selector
+     * @returns {Promise<WebElement>}
+     */
     click(data) {
         return this.works([
             [w => this.findElement(data)],
@@ -449,12 +641,24 @@ class WebRobot {
         ]);
     }
 
+    /**
+     * Wait an element to present for defined timeout.
+     *
+     * @param {By} data Selector
+     * @returns {Promise<WebElement>}
+     */
     waitFor(data) {
         return this.works([
             [w => this.getDriver().wait(until.elementLocated(data), this.timeout)],
         ]);
     }
 
+    /**
+     * Wait an element to present and then perform click.
+     *
+     * @param {By} data Selector
+     * @returns {Promise<WebElement>}
+     */
     waitAndClick(data) {
         return this.works([
             [w => this.waitFor(data)],
@@ -463,6 +667,13 @@ class WebRobot {
         ]);
     }
 
+    /**
+     * Get element texts.
+     *
+     * @param {By[]} items Selectors
+     * @param {WebElement} parent Parent element
+     * @returns {Promise<string[]>}
+     */
     getText(items, parent) {
         if (!parent) {
             parent = this.getDriver();
@@ -484,10 +695,22 @@ class WebRobot {
         });
     }
 
+    /**
+     * Show alert dialogue.
+     *
+     * @param {string} message Alert message
+     * @returns {Promise}
+     */
     alert(message) {
-        return this.getDriver().executeScript('alert("' + message + '")');
+        return this.getDriver().executeScript(`alert("${message}")`);
     }
 
+    /**
+     * Check if error is not expected error.
+     *
+     * @param {Error} err Error to check
+     * @returns {boolean}
+     */
     static isErr(err) {
         let result = err ? true : false;
         if (result) {
@@ -501,6 +724,11 @@ class WebRobot {
         return result;
     }
 
+    /**
+     * Register an expected error.
+     *
+     * @param {Error} err Error to expect
+     */
     static expectErr(err) {
         if (expectedErrors.indexOf(err) < 0) {
             expectedErrors.push(err);
