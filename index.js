@@ -578,15 +578,20 @@ class WebRobot {
     getFormValues(form, fields, useId = false) {
         return new Promise((resolve, reject) => {
             const values = {};
-            const q = new Queue(fields, name => {
+            const q = new Queue(fields, field => {
                 const next = () => q.next();
+                let isId = useId;
+                if (field.substr(0, 1) === '#') {
+                    field = field.substr(1);
+                    isId = true;
+                }
                 this.works([
-                    [w => form.findElement(useId ? By.id(name) : By.xpath(`//*[@name="${name}"]`))],
+                    [w => form.findElement(isId ? By.id(field) : By.xpath(`//*[@name="${field}"]`))],
                     [w => w.res.getAttribute('type')],
                     [w => w.pres.getAttribute(w.res === 'checkbox' ? 'checked' : 'value')],
                 ])
                 .then(value => {
-                    values[name] = value;
+                    values[field] = value;
                     next();
                 })
                 .catch(() => next());
