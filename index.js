@@ -355,7 +355,7 @@ class WebRobot {
                         }
                     }
                     // set parent if target is a relative path
-                    if (data.parent === undefined && data.target.using === 'xpath' && data.target.value.startWith('.')) {
+                    if (data.parent === undefined && data.target.using === 'xpath' && data.target.value.startsWith('.')) {
                         data.parent = w.getRes(0);
                     }
                     data.handler = () => {
@@ -420,7 +420,7 @@ class WebRobot {
      */
     fillFormValue(data) {
         return this.works([
-            [w => Promise.resolve(data.parent ? data.parent.findElements(data.target): this.findElements(data.target))],
+            [w => Promise.resolve(data.parent ? data.parent.findElements(data.target) : this.findElements(data.target))],
             [w => Promise.reject('Element not found!'), w => w.getRes(0).length === 0],
             [w => Promise.reject('Multi elements found!'), w => w.getRes(0).length > 1],
             [w => w.getRes(0)[0].getTagName()],
@@ -452,21 +452,31 @@ class WebRobot {
                     f();
                 }
             })],
+            // get input type
+            [w => Promise.resolve(this.getInputType(w.getRes(3), w.getRes(4))),
+                w => w.getRes(6)],
             // select
             [w => this.fillSelect(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.SELECT],
+                w => w.getRes(7) === this.SELECT],
             // checkbox
             [w => this.fillCheckbox(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.CHECKBOX],
+                w => w.getRes(7) === this.CHECKBOX],
             // radio
             [w => this.fillRadio(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.RADIO],
+                w => w.getRes(7) === this.RADIO],
             // textarea
             [w => this.fillTextarea(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.TEXTAREA],
+                w => w.getRes(7) === this.TEXTAREA],
             // other inputs
             [w => this.fillInput(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(6) && this.getInputType(w.getRes(3), w.getRes(4)) === this.OTHER],
+                w => w.getRes(7) === this.OTHER],
+            // validate required input
+            [w => w.getRes(0)[0].getAttribute('required'),
+                w => w.getRes(6) !== this.CHECKBOX],
+            [w => w.getRes(0)[0].getAttribute('value'),
+                w => w.getRes(13) === 'true'],
+            [w => Promise.reject(`Input ${data.target.value} is required!`),
+                w => w.getRes(13) === 'true' && w.getRes(14) === ''],
         ]);
     }
 
