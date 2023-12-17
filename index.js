@@ -421,8 +421,8 @@ class WebRobot {
     fillFormValue(data) {
         return this.works([
             [w => Promise.resolve(data.parent ? data.parent.findElements(data.target) : this.findElements(data.target))],
-            [w => Promise.reject('Element not found!'), w => w.getRes(0).length === 0],
-            [w => Promise.reject('Multi elements found!'), w => w.getRes(0).length > 1],
+            [w => Promise.reject(`Element ${data.target.value} not found!`), w => w.getRes(0).length === 0],
+            [w => Promise.reject(`Multiple elements found for ${data.target.value}!`), w => w.getRes(0).length > 1],
             [w => w.getRes(0)[0].getTagName()],
             [w => w.getRes(0)[0].getAttribute('type')],
             [w => Promise.resolve(typeof data.converter === 'function' ? data.converter(data.value) : data.value)],
