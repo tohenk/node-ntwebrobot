@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  *
- * Copyright (c) 2021-2023 Toha <tohenk@yahoo.com>
+ * Copyright (c) 2021-2024 Toha <tohenk@yahoo.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -422,61 +422,73 @@ class WebRobot {
         return this.works([
             [w => Promise.resolve(data.parent ? data.parent.findElements(data.target) : this.findElements(data.target))],
             [w => Promise.reject(`Element ${data.target.value} not found!`), w => w.getRes(0).length === 0],
-            [w => Promise.reject(`Multiple elements found for ${data.target.value}!`), w => w.getRes(0).length > 1],
-            [w => w.getRes(0)[0].getTagName()],
-            [w => w.getRes(0)[0].getAttribute('type')],
             [w => Promise.resolve(typeof data.converter === 'function' ? data.converter(data.value) : data.value)],
-            // custom fill in value
             [w => new Promise((resolve, reject) => {
-                data.el = w.getRes(0)[0];
-                const f = () => {
-                    if (typeof data.onfill === 'function') {
-                        data.onfill(w.getRes(0)[0], w.getRes(5))
-                            .then(() => resolve(false))
-                            .catch(err => reject(err));
-                    } else {
-                        resolve(true);
-                    }
-                }
-                if (typeof data.canfill === 'function') {
-                    data.canfill(w.getRes(3), w.getRes(0)[0], w.getRes(5))
-                        .then(result => {
-                            if (result) {
-                                resolve(false);
+                const items = w.getRes(0);
+                const count = items.length;
+                const value = w.getRes(2);
+                const q = new Queue(items, el => {
+                    this.works([
+                        [x => el.getTagName()],
+                        [x => el.getAttribute('type')],
+                        // get input type
+                        [x => Promise.resolve(this.getInputType(x.getRes(0), x.getRes(1)))],
+                        // allow only multiple elements for radio
+                        [x => Promise.reject(`Multiple elements found for ${data.target.value}!`), x => x.getRes(2) !== this.RADIO && count > 1],
+                        // custom fill in value
+                        [x => new Promise((resolve, reject) => {
+                            data.el = el;
+                            const f = () => {
+                                if (typeof data.onfill === 'function') {
+                                    data.onfill(el, value)
+                                        .then(() => resolve(false))
+                                        .catch(err => reject(err));
+                                } else {
+                                    resolve(true);
+                                }
+                            }
+                            if (typeof data.canfill === 'function') {
+                                data.canfill(x.getRes(0), el, value)
+                                    .then(result => {
+                                        if (result) {
+                                            resolve(false);
+                                        } else {
+                                            f();
+                                        }
+                                    })
+                                    .catch(err => reject(err));
                             } else {
                                 f();
                             }
-                        })
-                        .catch(err => reject(err));
-                } else {
-                    f();
-                }
-            })],
-            // get input type
-            [w => Promise.resolve(this.getInputType(w.getRes(3), w.getRes(4))),
-                w => w.getRes(6)],
-            // select
-            [w => this.fillSelect(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(7) === this.SELECT],
-            // checkbox
-            [w => this.fillCheckbox(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(7) === this.CHECKBOX],
-            // radio
-            [w => this.fillRadio(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(7) === this.RADIO],
-            // textarea
-            [w => this.fillTextarea(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(7) === this.TEXTAREA],
-            // other inputs
-            [w => this.fillInput(w.getRes(0)[0], w.getRes(5)),
-                w => w.getRes(7) === this.OTHER],
-            // validate required input
-            [w => w.getRes(0)[0].getAttribute('required'),
-                w => w.getRes(6) !== this.CHECKBOX],
-            [w => w.getRes(0)[0].getAttribute('value'),
-                w => w.getRes(13) === 'true'],
-            [w => Promise.reject(`Input ${data.target.value} is required!`),
-                w => w.getRes(13) === 'true' && w.getRes(14) === ''],
+                        })],
+                        // select
+                        [x => this.fillSelect(el, value),
+                            x => x.getRes(2) === this.SELECT && x.getRes(4)],
+                        // radio
+                        [x => this.fillRadio(el, value),
+                            x => x.getRes(2) === this.RADIO && x.getRes(4)],
+                        // checkbox
+                        [x => this.fillCheckbox(el, value),
+                            x => x.getRes(2) === this.CHECKBOX && x.getRes(4)],
+                        // textarea
+                        [x => this.fillTextarea(el, value),
+                            x => x.getRes(2) === this.TEXTAREA && x.getRes(4)],
+                        // other inputs
+                        [x => this.fillInput(el, value),
+                            x => x.getRes(2) === this.OTHER && x.getRes(4)],
+                        // validate required input
+                        [x => el.getAttribute('required'),
+                            x => x.getRes(2) !== this.CHECKBOX],
+                        [x => el.getAttribute('value'),
+                            x => x.getRes(10) === 'true'],
+                        [x => Promise.reject(`Input ${data.target.value} is required!`),
+                            x => x.getRes(10) === 'true' && x.getRes(11) === ''],
+                    ])
+                    .then(() => q.next())
+                    .catch(err => reject(err));
+                });
+                q.once('done', () => resolve());
+            })]
         ]);
     }
 
@@ -543,7 +555,8 @@ class WebRobot {
      */
     fillRadio(el, value) {
         return this.works([
-            [w => el.click()],
+            [w => el.getAttribute('value')],
+            [w => el.click(), w => w.getRes(0) == value],
         ]);
     }
 
