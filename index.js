@@ -24,7 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Builder, By, until, WebDriver, WebElement } = require('selenium-webdriver');
+const { Builder, By, error, until, WebDriver, WebElement } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 
 let operaService;
@@ -476,13 +476,15 @@ class WebRobot {
                         // other inputs
                         [x => this.fillInput(el, value),
                             x => x.getRes(2) === this.OTHER && x.getRes(4)],
+                        // check staleness
+                        [x => this.isStale(el)],
                         // validate required input
                         [x => el.getAttribute('required'),
-                            x => x.getRes(2) !== this.CHECKBOX],
+                            x => x.getRes(2) !== this.CHECKBOX && !x.getRes(10)],
                         [x => el.getAttribute('value'),
-                            x => x.getRes(10) === 'true'],
+                            x => x.getRes(11) === 'true'],
                         [x => Promise.reject(`Input ${data.target.value} is required!`),
-                            x => x.getRes(10) === 'true' && x.getRes(11) === ''],
+                            x => x.getRes(11) === 'true' && x.getRes(12) === ''],
                     ])
                     .then(() => q.next())
                     .catch(err => reject(err));
@@ -651,6 +653,26 @@ class WebRobot {
             return data.el.findElement(data.data);
         }
         return this.getDriver().findElement(data);
+    }
+
+    /**
+     * Check if element is stale.
+     *
+     * @param {WebElement} el Element to check
+     * @returns {Promise<boolean>}
+     */
+    isStale(el) {
+        return new Promise((resolve, reject) => {
+            el.isEnabled()
+                .then(() => resolve(false))
+                .catch(err => {
+                    if (err instanceof error.StaleElementReferenceError) {
+                        resolve(true);
+                    } else {
+                        reject(err);
+                    }
+                });
+        });
     }
 
     /**
