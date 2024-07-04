@@ -421,7 +421,7 @@ class WebRobot {
     fillFormValue(data) {
         return this.works([
             [w => Promise.resolve(data.parent ? data.parent.findElements(data.target) : this.findElements(data.target))],
-            [w => Promise.reject(`Element ${data.target.value} not found!`), w => w.getRes(0).length === 0],
+            [w => Promise.reject(`Element ${data.target.value} not found!`), w => w.getRes(0).length === 0 && !data.optional],
             [w => Promise.resolve(typeof data.converter === 'function' ? data.converter(data.value) : data.value)],
             [w => new Promise((resolve, reject) => {
                 const items = w.getRes(0);
