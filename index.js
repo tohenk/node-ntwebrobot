@@ -24,7 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Builder, By, error, until, WebDriver, WebElement } = require('selenium-webdriver');
+const { Builder, By, error, until, WebDriver, WebElement, Key } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 
 let operaService;
@@ -471,10 +471,10 @@ class WebRobot {
                         [x => this.fillCheckbox(el, value),
                             x => x.getRes(2) === this.CHECKBOX && x.getRes(4)],
                         // textarea
-                        [x => this.fillTextarea(el, value),
+                        [x => this.fillTextarea(el, value, data.clearUsingKey),
                             x => x.getRes(2) === this.TEXTAREA && x.getRes(4)],
                         // other inputs
-                        [x => this.fillInput(el, value),
+                        [x => this.fillInput(el, value, data.clearUsingKey),
                             x => x.getRes(2) === this.OTHER && x.getRes(4)],
                         // check staleness
                         [x => this.isStale(el)],
@@ -567,14 +567,16 @@ class WebRobot {
      *
      * @param {WebElement} el Input element
      * @param {string} value Input value
+     * @param {boolean} useKey Clear textarea using Ctrl+A+DELETE keys
      * @returns {Promise}
      */
-    fillTextarea(el, value) {
+    fillTextarea(el, value, useKey = false) {
         const textAreaSafe = value && value.indexOf('/') >= 0;
         return this.works([
-            [w => el.clear()],
+            [w => el.clear(), w => !useKey],
+            [w => el.sendKeys(Key.CONTROL, 'a', Key.DELETE), w => useKey],
             [w => el.sendKeys(value), w => null !== value && !textAreaSafe],
-            [w => this.getDriver().executeScript(`arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));`, el, value), w => null !== value && textAreaSafe],
+            [w => this.fillValueUsingScript(el, value), w => null !== value && textAreaSafe],
         ]);
     }
 
@@ -583,13 +585,26 @@ class WebRobot {
      *
      * @param {WebElement} el Input element
      * @param {string} value Input value
+     * @param {boolean} useKey Clear input using Ctrl+A+DELETE keys
      * @returns {Promise}
      */
-    fillInput(el, value) {
+    fillInput(el, value, useKey = false) {
         return this.works([
-            [w => el.clear()],
+            [w => el.clear(), w => !useKey],
+            [w => el.sendKeys(Key.CONTROL, 'a', Key.DELETE), w => useKey],
             [w => el.sendKeys(value), w => null !== value],
         ]);
+    }
+
+    /**
+     * Fill an element value using script.
+     *
+     * @param {WebElement} el Element
+     * @param {string} value Value
+     * @returns {Promise}
+     */
+    fillValueUsingScript(el, value) {
+        return this.getDriver().executeScript(`arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));`, el, value);
     }
 
     /**
