@@ -348,7 +348,7 @@ class WebRobot {
             [w => this.waitFor(form)],
             [w => this.getDriver().wait(until.elementIsVisible(w.getRes(0)))],
             [w => new Promise((resolve, reject) => {
-                const q = new Queue(values, data => {
+                const q = new Queue([...values], data => {
                     const next = () => {
                         if (typeof data.done === 'function') {
                             data.done(data, () => q.next());
@@ -620,7 +620,7 @@ class WebRobot {
     getFormValues(form, fields, useId = false) {
         return new Promise((resolve, reject) => {
             const values = {};
-            const q = new Queue(fields, field => {
+            const q = new Queue([...fields], field => {
                 const next = () => q.next();
                 let isId = useId;
                 if (field.substr(0, 1) === '#') {
@@ -747,7 +747,7 @@ class WebRobot {
         }
         return new Promise((resolve, reject) => {
             const result = [];
-            const q = new Queue(items, item => {
+            const q = new Queue([...items], item => {
                 this.works([
                     [w => parent.findElement(item)],
                     [w => w.res.getAttribute('innerText')],
