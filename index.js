@@ -88,8 +88,9 @@ class WebRobot {
      */
     constructor(options) {
         this.options = options || {};
-        this.workdir = this.options.workdir || __dirname;
         this.browser = this.options.browser || this.CHROME;
+        this.workdir = this.options.workdir || __dirname;
+        this.profiledir = this.options.profiledir;
         this.session = this.options.session;
         this.url = this.options.url;
         this.timeout = this.options.timeout || 10000;
@@ -116,9 +117,10 @@ class WebRobot {
                 this.onReady();
             }
         }
+        const profile = this.getProfileDir();
+        this.profileDirCreated = !fs.existsSync(profile);
         if (this.browser === this.FIREFOX) {
-            const profile = this.getProfileDir();
-            if (!fs.existsSync(profile)) {
+            if (this.profileDirCreated) {
                 const Channel = require('selenium-webdriver/firefox').Channel;
                 Channel.RELEASE.locate()
                     .then(ff => {
@@ -199,9 +201,9 @@ class WebRobot {
      * @returns {string}
      */
     getProfileDir() {
-        const profiledir = path.join(this.workdir, 'profile');
+        const profiledir = this.profiledir || path.join(this.workdir, 'profile');
         if (!fs.existsSync(profiledir)) {
-            fs.mkdirSync(profiledir);
+            fs.mkdirSync(profiledir, {recursive: true});
         }
         return path.join(profiledir, this.browser + (this.session ? '-' + this.session : ''));
     }
