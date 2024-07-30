@@ -737,7 +737,7 @@ class WebRobot {
     /**
      * Get element texts.
      *
-     * @param {By[]} items Selectors
+     * @param {By[]|object} items Selectors
      * @param {WebElement} parent Parent element
      * @returns {Promise<string[]>}
      */
@@ -746,14 +746,26 @@ class WebRobot {
             parent = this.getDriver();
         }
         return new Promise((resolve, reject) => {
-            const result = [];
-            const q = new Queue([...items], item => {
+            let result, values, keys, seq = 0;
+            if (typeof items === 'object' && !Array.isArray(items)) {
+                result = {};
+                keys = Object.keys(items);
+                values = Object.values(items);
+            } else {
+                result = [];
+                values = [...items];
+            }
+            const q = new Queue(values, item => {
                 this.works([
                     [w => parent.findElement(item)],
                     [w => w.res.getAttribute('innerText')],
                 ])
                 .then(text => {
-                    result.push(text);
+                    if (keys) {
+                        result[keys[seq++]] = text;
+                    } else {
+                        result.push(text);
+                    }
                     q.next();
                 })
                 .catch(err => reject(err));
