@@ -97,6 +97,7 @@ class WebRobot {
         this.wait = this.options.wait || 1000;
         this.ready = false;
         this.browsers = [this.CHROME, this.FIREFOX, this.OPERA];
+        this.safeTextArea = this.options.safeTextArea !== undefined ? this.options.safeTextArea : true;
         this.initialize();
         this.setup();
     }
@@ -573,7 +574,7 @@ class WebRobot {
      * @returns {Promise}
      */
     fillTextarea(el, value, useKey = false) {
-        const textAreaSafe = value && value.indexOf('/') >= 0;
+        const textAreaSafe = this.safeTextArea && value && value.indexOf('/') >= 0;
         return this.works([
             [w => el.clear(), w => !useKey],
             [w => el.sendKeys(Key.CONTROL, 'a', Key.DELETE), w => useKey],
