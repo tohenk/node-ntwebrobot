@@ -59,6 +59,14 @@ const loggedErrors = [];
  */
 
 /**
+ * A form field after fill callback.
+ *
+ * @callback afterFillCallback
+ * @param {WebElement} el Element
+ * @returns {Promise}
+ */
+
+/**
  * A base class for Selenium automation.
  *
  * @author Toha <tohenk@yahoo.com>
@@ -419,6 +427,7 @@ class WebRobot {
      * @param {valueConverterCallback} data.converter Value converter callback
      * @param {valueFillCallback} data.onfill Value fill callback
      * @param {valueCanFillCallback} data.canfill Value can fill callback
+     * @param {afterFillCallback} data.afterfill After fill callback
      * @returns {Promise}
      */
     fillFormValue(data) {
@@ -488,6 +497,8 @@ class WebRobot {
                             x => x.getRes(11) === 'true'],
                         [x => Promise.reject(`Input ${data.target.value} is required!`),
                             x => x.getRes(11) === 'true' && x.getRes(12) === ''],
+                        [x => data.afterfill(el),
+                            x => typeof data.afterfill === 'function'],
                     ])
                     .then(() => q.next())
                     .catch(err => reject(err));
