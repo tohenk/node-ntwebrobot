@@ -408,8 +408,7 @@ class WebRobot {
                         this.works([
                             [x => this.sleep(wait), x => wait > 0],
                             [x => submit(), x => typeof submit === 'function'],
-                            [x => this.findElement(submit), x => typeof submit !== 'function'],
-                            [x => x.getRes(2).click(), x => typeof submit !== 'function'],
+                            [x => this.click(submit), x => typeof submit !== 'function'],
                         ])
                         .then(res => resolve(res))
                         .catch(err => reject(err));
