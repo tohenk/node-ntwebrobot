@@ -404,14 +404,18 @@ class WebRobot {
                     data.handler();
                 });
                 q.once('done', () => {
-                    this.works([
-                        [x => this.sleep(wait), x => submit && wait > 0],
-                        [x => this.findElement(submit), x => submit],
-                        [x => x.getRes(1).click(), x => submit],
-                        [x => Promise.resolve(submit ? x.getRes(1) : w.getRes(0))],
-                    ])
-                    .then(res => resolve(res))
-                    .catch(err => reject(err));
+                    if (submit) {
+                        this.works([
+                            [x => this.sleep(wait), x => wait > 0],
+                            [x => submit(), x => typeof submit === 'function'],
+                            [x => this.findElement(submit), x => typeof submit !== 'function'],
+                            [x => x.getRes(2).click(), x => typeof submit !== 'function'],
+                        ])
+                        .then(res => resolve(res))
+                        .catch(err => reject(err));
+                    } else {
+                        resolve(w.getRes(0));
+                    }
                 });
             })],
         ]);
