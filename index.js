@@ -176,10 +176,14 @@ class WebRobot {
                     options = new ChromeOptions();
                     options.addArguments('start-maximized');
                     options.addArguments(`user-data-dir=${profile}`);
+                    /** @see https://github.com/selenide/selenide/discussions/2658 */
+                    options.setUserPreferences({
+                        'profile.password_manager_leak_detection': false,
+                    });
                     if (downloaddir) {
                         options.setUserPreferences({
                             'download.default_directory': downloaddir,
-                            'profile.default_content_setting_values.automatic_downloads': 1,
+                            'profile.default_content_setting_values.automatic_downloads': true,
                         });
                     }
                     break;
