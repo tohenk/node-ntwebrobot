@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  *
- * Copyright (c) 2021-2024 Toha <tohenk@yahoo.com>
+ * Copyright (c) 2021-2025 Toha <tohenk@yahoo.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -597,7 +597,9 @@ class WebRobot {
             [w => el.clear(), w => !useKey],
             [w => el.sendKeys(Key.CONTROL, 'a', Key.DELETE), w => useKey],
             [w => el.sendKeys(value), w => null !== value && !textAreaSafe],
-            [w => this.fillValueUsingScript(el, value), w => null !== value && textAreaSafe],
+            [w => this.fillSlashSafe(el, value), w => null !== value && textAreaSafe],
+            [w => el.getAttribute('value'), w => null !== value],
+            [w => Promise.reject(`Unable to fill textarea, expected ${value} but got ${w.getRes(4)}!`), w => null !== value && w.getRes(4) !== value],
         ]);
     }
 
@@ -626,6 +628,40 @@ class WebRobot {
      */
     fillValueUsingScript(el, value) {
         return this.getDriver().executeScript(`arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change'));`, el, value);
+    }
+
+    /**
+     * Fill textarea text with slash workaround.
+     *
+     * @param {WebElement} el Element
+     * @param {string} value Value
+     * @returns {Promise}
+     */
+    fillSlashSafe(el, value) {
+        return new Promise((resolve, reject) => {
+            const f = () => {
+                if (value.length) {
+                    let s;
+                    const idx = value.indexOf('/');
+                    if (idx >= 0) {
+                        s = value.substr(0, idx);
+                        value = value.substr(idx + 1);
+                    } else {
+                        s = value;
+                        value = '';
+                    }
+                    this.works([
+                        [w => el.sendKeys(s), w => s.length],
+                        [w => this.getDriver().executeScript(`arguments[0].value += '/';`, el), w => idx >= 0],
+                    ])
+                    .then(() => f())
+                    .catch(err => reject(err));
+                } else {
+                    resolve();
+                }
+            }
+            f();
+        });
     }
 
     /**
