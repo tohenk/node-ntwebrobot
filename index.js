@@ -354,12 +354,18 @@ class WebRobot {
      * @param {WebElement} form Form element
      * @param {WebElement} submit Submit element
      * @param {number} wait Wait milliseconds
+     * @param {Function} prefillCallback Callback to prepare the form fill
      * @returns {Promise}
      */
-    fillInForm(values, form, submit, wait = 0) {
+    fillInForm(values, form, submit, wait = 0, prefillCallback = null) {
+        if (typeof wait === 'function') {
+            prefillCallback = wait;
+            wait = 0;
+        }
         return this.works([
             [w => this.waitFor(form)],
             [w => this.getDriver().wait(until.elementIsVisible(w.getRes(0)))],
+            [w => prefillCallback(w.getRes(0)), w => typeof prefillCallback === 'function'],
             [w => new Promise((resolve, reject) => {
                 const q = new Queue([...values], data => {
                     const next = () => {
