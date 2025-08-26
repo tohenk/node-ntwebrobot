@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const { Builder, By, error, until, WebDriver, WebElement, Key } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
+const { parse, HTMLElement, TextNode } = require('node-html-parser');
 
 let operaService;
 const expectedErrors = [];
@@ -400,7 +401,7 @@ class WebRobot {
                                             [y => Promise.resolve(data.target), y => !data.el],
                                         ])
                                         .then(target => {
-                                            console.error('Unable to fill form value %s: %s!', target, err instanceof Error ? err.toString() : err);
+                                            console.error('Unable to fill form value %s: %s!', this.truncate(target), err instanceof Error ? err.toString() : err);
                                             reject(err);
                                         });
                                     })
@@ -833,6 +834,42 @@ class WebRobot {
             });
             q.once('done', () => resolve(result))
         });
+    }
+
+    /**
+     * Truncate HTML text to the maximum length allowed.
+     *
+     * @param {string} html The content
+     * @param {number} maxlen New maximum allowed length
+     * @returns {string}
+     */
+    truncate(html, maxlen = 100) {
+        if (typeof html === 'string' && html.length > maxlen) {
+            const root = parse(html);
+            let node = root;
+            while (root.outerHTML.length > maxlen) {
+                let top = false;
+                if (node instanceof HTMLElement) {
+                    if (node.childNodes.length > 1) {
+                        node.removeChild(node.lastChild);
+                    } else if (node.childNodes.length > 0) {
+                        node = node.firstChild;
+                    } else {
+                        top = true;
+                    }
+                } else {
+                    top = true;
+                }
+                if (top) {
+                    const p = node.parentNode;
+                    p.removeChild(node);
+                    node = p;
+                }
+            }
+            node.append(new TextNode('...'));
+            html = root.outerHTML;
+        }
+        return html;
     }
 
     /**
