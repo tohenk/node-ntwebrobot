@@ -177,6 +177,7 @@ class WebRobot {
                     options = new ChromeOptions();
                     options.addArguments('start-maximized');
                     options.addArguments(`user-data-dir=${profile}`);
+                    options.addArguments('disable-blink-features=AutomationControlled');
                     /** @see https://github.com/selenide/selenide/discussions/2658 */
                     options.setUserPreferences({
                         'profile.password_manager_leak_detection': false,
