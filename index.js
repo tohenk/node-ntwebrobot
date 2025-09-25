@@ -164,23 +164,27 @@ class WebRobot {
                 case this.constructor.CHROME:
                 case this.constructor.OPERA:
                     const ChromeOptions = require('selenium-webdriver/chrome').Options;
+                    /** @type {ChromeOptions} */
                     options = new ChromeOptions();
                     options.addArguments('--start-maximized');
                     options.addArguments(`--user-data-dir=${profile}`);
                     options.addArguments('--disable-blink-features=AutomationControlled');
-                    /** @see https://github.com/selenide/selenide/discussions/2658 */
-                    options.setUserPreferences({
-                        'profile.password_manager_leak_detection': false,
-                    });
-                    if (downloaddir) {
-                        options.setUserPreferences({
-                            'download.default_directory': downloaddir,
-                            'profile.default_content_setting_values.automatic_downloads': true,
-                        });
+                    options.excludeSwitches('enable-automation');
+                    const prefs = {
+                        'credentials_enable_service': false,
+                        'profile.password_manager_enabled': false,
+                        /** @see https://github.com/selenide/selenide/discussions/2658 */
+                        'profile.password_manager_leak_detection': false
                     }
+                    if (downloaddir) {
+                        prefs['download.default_directory'] = downloaddir;
+                        prefs['profile.default_content_setting_values.automatic_downloads'] = true;
+                    }
+                    options.setUserPreferences(prefs);
                     break;
                 case this.constructor.FIREFOX:
                     const FirefoxOptions = require('selenium-webdriver/firefox').Options;
+                    /** @type {FirefoxOptions} */
                     options = new FirefoxOptions();
                     options.setProfile(profile);
                     if (downloaddir) {
