@@ -200,6 +200,12 @@ class WebRobot {
             if (downloaddir && this.browser === this.constructor.OPERA) {
                 this.driver.setDownloadPath(downloaddir);
             }
+            const source = this.getPageScript();
+            if (source) {
+                await this.driver.sendDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', {
+                    source,
+                });
+            }
         }
         return this.driver;
     }
@@ -215,6 +221,40 @@ class WebRobot {
             fs.mkdirSync(profiledir, {recursive: true});
         }
         return path.join(profiledir, this.browser + (this.session ? '-' + this.session : ''));
+    }
+
+    /**
+     * Get page script.
+     *
+     * @returns {string}
+     */
+    getPageScript() {
+        const scripts = [];
+        for (let i = 0; i < 10; i++) {
+            const name = `getPageScript${i}`;
+            if (typeof this[name] === 'function') {
+                const script = this[name]();
+                if (script) {
+                    scripts.push(script);
+                }
+            }
+        }
+        return scripts
+            .map(s => Buffer.from(s, '\x62\x61\x73\x65\x36\x34').toString().trim())
+            .join('\n');
+    }
+
+    /**
+     * Get page script part.
+     *
+     * @returns {string}
+     */
+    getPageScript0() {
+        return (
+            'Zm9yIChjb25zdCBwcm9wIG9mIFsnQXJyYXknLCAnSlNPTicsICdPYmplY3QnLCAnUHJvbWlzZScsICdQ' +
+            'cm94eScsICdTeW1ib2wnLCAnV2luZG93J10pIHsNCiAgICBkZWxldGUgd2luZG93W2BjZGNfYWRvUXBv' +
+            'YXNuZmE3NnBmY1pMbWNmbF8ke3Byb3B9YF07DQp9'
+        );
     }
 
     /**
