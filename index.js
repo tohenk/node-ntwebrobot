@@ -437,8 +437,8 @@ class WebRobot {
                                             [y => Promise.resolve(data.target), y => !data.el],
                                         ])
                                         .then(target => {
-                                            console.error('Unable to fill form value %s: %s!', this.truncate(target), err instanceof Error ? err.toString() : err);
-                                            reject(err);
+                                            reject(new Error(`Unable to fill form value ${this.truncate(target)}!\n` +
+                                                err instanceof Error ? err.toString() : err));
                                         });
                                     })
                                 ;
