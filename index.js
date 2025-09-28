@@ -302,24 +302,40 @@ class WebRobot {
         if (!options.onerror) {
             options.onerror = w => {
                 if (w.err instanceof Error && WebRobot.isErr(w.err)) {
-                    if (loggedErrors.indexOf(w.err) < 0) {
-                        loggedErrors.push(w.err);
-                        console.error('Got error doing %s!\n%s', w.current.info, w.err);
-                    } else {
-                        let lines = w.current.info.split('\n');
-                        let indent = 0;
-                        lines.forEach(line => {
-                            const match = line.match(/^\s+/);
-                            if (match) {
-                                if (indent === 0 || match[0].length < indent) {
-                                    indent = match[0].length;
+                    const unindent = lines => {
+                        lines = lines.split('\n');
+                        if (lines.length) {
+                            const firstLine = lines.shift().trim();
+                            if (lines.length) {
+                                let indent = 0;
+                                lines.forEach(line => {
+                                    const match = line.match(/^\s+/);
+                                    if (match) {
+                                        if (indent === 0 || match[0].length < indent) {
+                                            indent = match[0].length;
+                                        }
+                                    }
+                                });
+                                if (indent > 0) {
+                                    lines = lines.map(line => line.substr(0, indent) === ' '.repeat(indent) ? line.substr(indent) : line);
                                 }
                             }
-                        });
-                        if (indent > 0) {
-                            lines = lines.map(line => line.substr(0, indent) === ' '.repeat(indent) ? line.substr(indent - 3) : line);
+                            lines.unshift(firstLine);
                         }
-                        console.error('-> %s', lines.join('\n'));
+                        return lines.join('\n');
+                    }
+                    if (loggedErrors.indexOf(w.err) < 0) {
+                        loggedErrors.push(w.err);
+                        const offendingLines = unindent(w.current.info);
+                        console.error('Got error while doing:\n%s', offendingLines);
+                        if (w.err._message) {
+                            console.error(`${w.err._message}!\n${w.err.toString()}`);
+                        } else {
+                            console.error(w.err.toString());
+                        }
+                    } else {
+                        const lines = w.current.info.split('\n');
+                        console.error('-> %s', lines[0] + (lines.length > 1 ? ' ...' : ''));
                     }
                 }
             }
@@ -437,8 +453,13 @@ class WebRobot {
                                             [y => Promise.resolve(data.target), y => !data.el],
                                         ])
                                         .then(target => {
-                                            reject(new Error(`Unable to fill form value ${this.truncate(target)}!\n` +
-                                                err instanceof Error ? err.toString() : err));
+                                            const message = `Unable to fill form value ${this.truncate(target)}!`;
+                                            if (err instanceof Error) {
+                                                err._message = message;
+                                            } else {
+                                                err = message + '\n' + err;
+                                            }
+                                            reject(err);
                                         });
                                     })
                                 ;
