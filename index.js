@@ -324,18 +324,19 @@ class WebRobot {
                         }
                         return lines.join('\n');
                     }
+                    const logger = options.logger === 'funtion' ? options.logger : console.error;
                     if (loggedErrors.indexOf(w.err) < 0) {
                         loggedErrors.push(w.err);
                         const offendingLines = unindent(w.current.info);
-                        console.error('Got error while doing:\n%s', offendingLines);
+                        logger('Got error while doing:\n%s', offendingLines);
                         if (w.err._message) {
-                            console.error(`${w.err._message}!\n${w.err.toString()}`);
+                            logger(`${w.err._message}!\n${w.err.toString()}`);
                         } else {
-                            console.error(w.err.toString());
+                            logger(w.err.toString());
                         }
                     } else {
                         const lines = w.current.info.split('\n');
-                        console.error('-> %s', lines[0] + (lines.length > 1 ? ' ...' : ''));
+                        logger('-> %s', lines[0] + (lines.length > 1 ? ' ...' : ''));
                     }
                 }
             }

@@ -1,6 +1,6 @@
 {
   "name": "@ntlab/webrobot",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "A webrobot based on Selenium",
   "main": "index.js",
   "scripts": {
@@ -23,6 +23,6 @@
   "dependencies": {
     "@ntlab/work": "^2.3.0",
     "node-html-parser": "^7.0.1",
-    "selenium-webdriver": "^4.35.0"
+    "selenium-webdriver": "^4.36.0"
   }
 }
