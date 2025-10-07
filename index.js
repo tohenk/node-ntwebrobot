@@ -296,7 +296,7 @@ class WebRobot {
      * @see Work.works
      */
     works(w, options) {
-        return Work.works(w, WorkErrorLogger.create(this)
+        return Work.works(w, WorkErrorLogger.create(this.options.loginfo)
             .onerror(options || {}));
     }
 
@@ -953,8 +953,8 @@ class WorkErrorLogger {
 
     errors = []
 
-    constructor(owner) {
-        this.owner = owner;
+    constructor(parameters) {
+        this.parameters = parameters || {};
     }
 
     /**
@@ -968,7 +968,7 @@ class WorkErrorLogger {
             options.onerror = w => {
                 if (w.err instanceof Error && WebRobot.isErr(w.err)) {
                     const logger = typeof options.logger === 'function' ? options.logger :
-                        (typeof this.owner.onerror === 'function' ? this.owner.onerror() : console.error);
+                        (typeof this.parameters.onerror === 'function' ? this.parameters.onerror() : console.error);
                     if (this.errors.indexOf(w.err) < 0) {
                         this.errors.push(w.err);
                         const offendingLines = this.unindent(w.current.info);
@@ -1021,17 +1021,21 @@ class WorkErrorLogger {
     /**
      * Create error logger.
      *
-     * @param {any} owner The owner
+     * @param {object} parameters The parameters
+     * @param {string} parameters.tag Tag name
+     * @param {Function} parameters.onerror Error logger function factory, must return function
      * @returns {WorkErrorLogger}
      */
-    static create(owner) {
-        if (!owner) {
-            throw new Error('Owner must be an object!');
+    static create(parameters) {
+        parameters = parameters || {};
+        const name = parameters.tag || this.name;
+        if (this._loggers === undefined) {
+            this._loggers = {};
         }
-        if (owner._logger === undefined) {
-            owner._logger = new this(owner);
+        if (this._loggers[name] === undefined) {
+            this._loggers[name] = new this(parameters);
         }
-        return owner._logger;
+        return this._loggers[name];
     }
 }
 
