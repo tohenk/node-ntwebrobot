@@ -30,7 +30,6 @@ const { parse, HTMLElement, TextNode } = require('node-html-parser');
 
 let operaService;
 const expectedErrors = [];
-const loggedErrors = [];
 
 /**
  * A form field value converter callback.
@@ -137,8 +136,7 @@ class WebRobot {
                             console.log('Mozilla Firefox create profile returns %d', code);
                             f();
                         });
-                    })
-                ;
+                    });
             } else {
                 f();
             }
@@ -298,51 +296,8 @@ class WebRobot {
      * @see Work.works
      */
     works(w, options) {
-        options = options || {};
-        if (!options.onerror) {
-            options.onerror = w => {
-                if (w.err instanceof Error && WebRobot.isErr(w.err)) {
-                    const unindent = lines => {
-                        lines = lines.split('\n');
-                        if (lines.length) {
-                            const firstLine = lines.shift().trim();
-                            if (lines.length) {
-                                let indent = 0;
-                                lines.forEach(line => {
-                                    const match = line.match(/^\s+/);
-                                    if (match) {
-                                        if (indent === 0 || match[0].length < indent) {
-                                            indent = match[0].length;
-                                        }
-                                    }
-                                });
-                                if (indent > 0) {
-                                    lines = lines.map(line => line.substr(0, indent) === ' '.repeat(indent) ? line.substr(indent) : line);
-                                }
-                            }
-                            lines.unshift(firstLine);
-                        }
-                        return lines.join('\n');
-                    }
-                    const logger = typeof options.logger === 'function' ? options.logger :
-                        (typeof this.onerror === 'function' ? this.onerror() : console.error);
-                    if (loggedErrors.indexOf(w.err) < 0) {
-                        loggedErrors.push(w.err);
-                        const offendingLines = unindent(w.current.info);
-                        logger('Got error while doing:\n%s', offendingLines);
-                        if (w.err._message) {
-                            logger(`${w.err._message}!\n${w.err.toString()}`);
-                        } else {
-                            logger(w.err.toString());
-                        }
-                    } else {
-                        const lines = w.current.info.split('\n');
-                        logger('-> %s', lines[0] + (lines.length > 1 ? ' ...' : ''));
-                    }
-                }
-            }
-        }
-        return Work.works(w, options);
+        return Work.works(w, WorkErrorLogger.create(this)
+            .onerror(options || {}));
     }
 
     /**
@@ -406,21 +361,30 @@ class WebRobot {
      * Do fill in form.
      *
      * @param {Array} values Form values
-     * @param {WebElement} form Form element
-     * @param {WebElement} submit Submit element
-     * @param {number} wait Wait milliseconds
-     * @param {Function} prefillCallback Callback to prepare the form fill
+     * @param {By} form Form element selector
+     * @param {By|Function} submit Submit element selector
+     * @param {object} options The options
+     * @param {number} options.wait Submit wait time
+     * @param {Function} options.prefillCallback Pre form fill callback
      * @returns {Promise<WebElement>}
      */
-    fillInForm(values, form, submit, wait = 0, prefillCallback = null) {
-        if (typeof wait === 'function') {
-            prefillCallback = wait;
-            wait = 0;
+    fillInForm(values, form, submit, options = null) {
+        if (typeof options === 'number') {
+            options = {wait: options};
+        }
+        if (typeof options === 'function') {
+            options = {prefillCallback: options};
+        }
+        if (!options) {
+            options = {};
+        }
+        if (options.wait === undefined) {
+            options.wait = 0;
         }
         return this.works([
             [w => this.waitFor(form)],
             [w => this.driver.wait(until.elementIsVisible(w.getRes(0)))],
-            [w => prefillCallback(w.getRes(0)), w => typeof prefillCallback === 'function'],
+            [w => options.prefillCallback(w.getRes(0)), w => typeof options.prefillCallback === 'function'],
             [w => new Promise((resolve, reject) => {
                 const q = new Queue([...values], data => {
                     const next = () => {
@@ -443,8 +407,7 @@ class WebRobot {
                                         data.parent = res;
                                         resolve();
                                     })
-                                    .catch(err => reject(err))
-                                ;
+                                    .catch(err => reject(err));
                             }), x => data.parent instanceof By],
                             [x => new Promise((resolve, reject) => {
                                 this.fillFormValue(data)
@@ -463,8 +426,7 @@ class WebRobot {
                                             }
                                             reject(err);
                                         });
-                                    })
-                                ;
+                                    });
                             })],
                         ])
                         .then(() => next())
@@ -476,7 +438,7 @@ class WebRobot {
                 q.once('done', () => {
                     if (submit) {
                         this.works([
-                            [x => this.sleep(wait), x => wait > 0],
+                            [x => this.sleep(options.wait), x => options.wait > 0],
                             [x => submit(), x => typeof submit === 'function'],
                             [x => this.click(submit), x => typeof submit !== 'function'],
                         ])
@@ -981,5 +943,98 @@ class WebRobot {
     static get TEXTAREA() { return 4 }
     static get OTHER() { return 5 }
 }
+
+/**
+ * A work error logging utility.
+ *
+ * @author Toha <tohenk@yahoo.com>
+ */
+class WorkErrorLogger {
+
+    errors = []
+
+    constructor(owner) {
+        this.owner = owner;
+    }
+
+    /**
+     * Apply work onerror handler.
+     *
+     * @param {object} options Work options
+     * @returns {object}
+     */
+    onerror(options) {
+        if (!options.onerror) {
+            options.onerror = w => {
+                if (w.err instanceof Error && WebRobot.isErr(w.err)) {
+                    const logger = typeof options.logger === 'function' ? options.logger :
+                        (typeof this.owner.onerror === 'function' ? this.owner.onerror() : console.error);
+                    if (this.errors.indexOf(w.err) < 0) {
+                        this.errors.push(w.err);
+                        const offendingLines = this.unindent(w.current.info);
+                        logger('Got error while doing:\n%s', offendingLines);
+                        if (w.err._message) {
+                            logger(`${w.err._message}\n${w.err.toString()}`);
+                        } else {
+                            logger(w.err.toString());
+                        }
+                    } else {
+                        const lines = w.current.info.split('\n');
+                        logger('-> %s', lines[0].trimEnd() + (lines.length > 1 ? ' ...' : ''));
+                    }
+                }
+            }
+        }
+        return options;
+    }
+
+    /**
+     * Perform line un-indentation.
+     *
+     * @param {string} lines The lines
+     * @returns {string}
+     */
+    unindent(lines) {
+        lines = lines.split('\n');
+        if (lines.length) {
+            const firstLine = lines.shift().trim();
+            if (lines.length) {
+                let indent = 0;
+                lines.forEach(line => {
+                    const match = line.match(/^\s+/);
+                    if (match) {
+                        if (indent === 0 || match[0].length < indent) {
+                            indent = match[0].length;
+                        }
+                    }
+                });
+                if (indent > 0) {
+                    lines = lines.map(line => line.substr(0, indent) === ' '.repeat(indent) ?
+                        line.substr(indent) : line);
+                }
+            }
+            lines.unshift(firstLine);
+        }
+        return lines.join('\n');
+    }
+
+    /**
+     * Create error logger.
+     *
+     * @param {any} owner The owner
+     * @returns {WorkErrorLogger}
+     */
+    static create(owner) {
+        if (!owner) {
+            throw new Error('Owner must be an object!');
+        }
+        if (owner._logger === undefined) {
+            owner._logger = new this(owner);
+        }
+        return owner._logger;
+    }
+}
+
+WebRobot.WorkErrorLogger = WorkErrorLogger;
 
 module.exports = WebRobot;
