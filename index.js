@@ -324,7 +324,8 @@ class WebRobot {
                         }
                         return lines.join('\n');
                     }
-                    const logger = options.logger === 'funtion' ? options.logger : console.error;
+                    const logger = typeof options.logger === 'function' ? options.logger :
+                        (typeof this.onerror === 'function' ? this.onerror() : console.error);
                     if (loggedErrors.indexOf(w.err) < 0) {
                         loggedErrors.push(w.err);
                         const offendingLines = unindent(w.current.info);
