@@ -366,6 +366,7 @@ class WebRobot {
      * @param {object} options The options
      * @param {number} options.wait Submit wait time
      * @param {Function} options.prefillCallback Pre form fill callback
+     * @param {Function} options.postfillCallback Post form fill callback
      * @returns {Promise<WebElement>}
      */
     fillInForm(values, form, submit, options = null) {
@@ -436,17 +437,15 @@ class WebRobot {
                     data.handler();
                 });
                 q.once('done', () => {
-                    if (submit) {
-                        this.works([
-                            [x => this.sleep(options.wait), x => options.wait > 0],
-                            [x => submit(), x => typeof submit === 'function'],
-                            [x => this.click(submit), x => typeof submit !== 'function'],
-                        ])
-                        .then(res => resolve(res))
-                        .catch(err => reject(err));
-                    } else {
-                        resolve(w.getRes(0));
-                    }
+                    this.works([
+                        [x => options.postfillCallback(w.getRes(0)), w => typeof options.postfillCallback === 'function'],
+                        [x => this.sleep(options.wait), x => submit && options.wait > 0],
+                        [x => submit(), x => submit && typeof submit === 'function'],
+                        [x => this.click(submit), x => submit && typeof submit !== 'function'],
+                        [x => Promise.resolve(w.getRes(0)), x => !submit],
+                    ])
+                    .then(res => resolve(res))
+                    .catch(err => reject(err));
                 });
             })],
         ]);
