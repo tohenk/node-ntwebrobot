@@ -59,6 +59,14 @@ const expectedErrors = [];
  */
 
 /**
+ * A form field pre fill callback.
+ *
+ * @callback preFillCallback
+ * @param {WebElement} el Element
+ * @param {string} value Value
+ */
+
+/**
  * A form field after fill callback.
  *
  * @callback afterFillCallback
@@ -421,7 +429,7 @@ class WebRobot {
                                         .then(target => {
                                             const message = `Unable to fill form value ${this.truncate(target)}!`;
                                             if (err instanceof Error) {
-                                                err._message = message;
+                                                err = new Error(message, {cause: err});
                                             } else {
                                                 err = message + '\n' + err;
                                             }
@@ -461,6 +469,7 @@ class WebRobot {
      * @param {valueConverterCallback} data.converter Value converter callback
      * @param {valueFillCallback} data.onfill Value fill callback
      * @param {valueCanFillCallback} data.canfill Value can fill callback
+     * @param {prefillCallback} data.prefill Pre fill callback
      * @param {afterFillCallback} data.afterfill After fill callback
      * @returns {Promise<void>}
      */
@@ -493,18 +502,26 @@ class WebRobot {
                                     resolve(true);
                                 }
                             }
-                            if (typeof data.canfill === 'function') {
-                                data.canfill(x.getRes(0), el, value)
-                                    .then(result => {
-                                        if (result) {
-                                            resolve(false);
-                                        } else {
-                                            f();
-                                        }
-                                    })
-                                    .catch(err => reject(err));
-                            } else {
-                                f();
+                            try {
+                                if (typeof data.prefill === 'function') {
+                                    data.prefill(el, value);
+                                }
+                                if (typeof data.canfill === 'function') {
+                                    data.canfill(x.getRes(0), el, value)
+                                        .then(result => {
+                                            if (result) {
+                                                resolve(false);
+                                            } else {
+                                                f();
+                                            }
+                                        })
+                                        .catch(err => reject(err));
+                                } else {
+                                    f();
+                                }
+                            }
+                            catch (err) {
+                                reject(err);
                             }
                         })],
                         // select
@@ -971,11 +988,9 @@ class WorkErrorLogger {
                     if (this.errors.indexOf(w.err) < 0) {
                         this.errors.push(w.err);
                         const offendingLines = this.unindent(w.current.info);
-                        logger('Got error while doing:\n%s', offendingLines);
-                        if (w.err._message) {
-                            logger(`${w.err._message}\n${w.err.toString()}`);
-                        } else {
-                            logger(w.err.toString());
+                        logger('Got error while doing:\n%s\n%s', offendingLines, w.err.toString());
+                        if (w.err.cause) {
+                            logger('Caused by %s', w.err.cause.toString());
                         }
                     } else {
                         const lines = w.current.info.split('\n');
