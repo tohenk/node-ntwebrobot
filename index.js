@@ -985,13 +985,10 @@ class WorkErrorLogger {
                 if (w.err instanceof Error && WebRobot.isErr(w.err)) {
                     const logger = typeof options.logger === 'function' ? options.logger :
                         (typeof this.parameters.onerror === 'function' ? this.parameters.onerror() : console.error);
-                    if (this.errors.indexOf(w.err) < 0) {
+                    if (!this.errors.includes(w.err) && !w.err.cause) {
                         this.errors.push(w.err);
                         const offendingLines = this.unindent(w.current.info);
                         logger('Got error while doing:\n%s\n%s', offendingLines, w.err.toString());
-                        if (w.err.cause) {
-                            logger('Caused by %s', w.err.cause.toString());
-                        }
                     } else {
                         const lines = w.current.info.split('\n');
                         logger('-> %s', lines[0].trimEnd() + (lines.length > 1 ? ' ...' : ''));
