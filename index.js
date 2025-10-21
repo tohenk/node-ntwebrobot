@@ -883,7 +883,7 @@ class WebRobot {
     truncate(html, maxlen = 100) {
         if (typeof html === 'string' && html.length > maxlen) {
             const root = parse(html);
-            let node = root;
+            let node = root, attr = false;
             while (root.outerHTML.length > maxlen) {
                 let top = false;
                 if (node instanceof HTMLElement) {
@@ -891,8 +891,14 @@ class WebRobot {
                         node.removeChild(node.lastChild);
                     } else if (node.childNodes.length > 0) {
                         node = node.firstChild;
-                    } else {
+                    } else if (node.parentNode !== root) {
                         top = true;
+                    } else {
+                        const attrs = Object.keys(node.attrs);
+                        if (attrs.length) {
+                            node.removeAttribute(attrs[attrs.length - 1]);
+                            attr = true;
+                        }
                     }
                 } else {
                     top = true;
@@ -903,7 +909,11 @@ class WebRobot {
                     node = p;
                 }
             }
-            node.append(new TextNode('...'));
+            if (attr) {
+                node.setAttribute('...', '');
+            } else {
+                node.append(new TextNode('...'));
+            }
             html = root.outerHTML;
         }
         return html;
