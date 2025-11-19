@@ -463,8 +463,9 @@ class WebRobot {
      * Do form field fill in.
      *
      * @param {object} data Form value data
+     * @param {WebElement[]} data.elements Field elements
      * @param {WebElement} data.parent Parent element
-     * @param {By} data.target Field element
+     * @param {By} data.target Field selector
      * @param {string} data.value Field value
      * @param {valueConverterCallback} data.converter Value converter callback
      * @param {valueFillCallback} data.onfill Value fill callback
@@ -475,7 +476,8 @@ class WebRobot {
      */
     fillFormValue(data) {
         return this.works([
-            [w => Promise.resolve(data.parent ? data.parent.findElements(data.target) : this.findElements(data.target))],
+            [w => Promise.resolve(Array.isArray(data.elements) ? data.elements :
+                (data.parent ? data.parent.findElements(data.target) : this.findElements(data.target)))],
             [w => Promise.reject(`Element ${data.target.value} not found!`), w => w.getRes(0).length === 0 && !data.optional],
             [w => Promise.resolve(typeof data.converter === 'function' ? data.converter(data.value) : data.value)],
             [w => new Promise((resolve, reject) => {
