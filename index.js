@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  *
- * Copyright (c) 2021-2025 Toha <tohenk@yahoo.com>
+ * Copyright (c) 2021-2026 Toha <tohenk@yahoo.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -76,6 +76,24 @@ const expectedErrors = [];
 
 /**
  * A base class for Selenium automation.
+ *
+ * This class can be extended by providing methods to customize webdriver.
+ *
+ * Such methods are:
+ * * `onReady()` which will be called when webdriver is ready
+ * * `onDriverOptions(options)` which will be called when webdriver options is setup, you can add additional options here
+ * * `getPageScript0()` which will be called to get the script content to be executed on new browser document (used internally)
+ * * `getPageScript1()` same as `getPageScript0()`
+ * * `getPageScript2()` same as `getPageScript0()`
+ * * `getPageScript3()` same as `getPageScript0()`
+ * * `getPageScript4()` same as `getPageScript0()`
+ * * `getPageScript5()` same as `getPageScript0()`
+ * * `getPageScript6()` same as `getPageScript0()`
+ * * `getPageScript7()` same as `getPageScript0()`
+ * * `getPageScript8()` same as `getPageScript0()`
+ * * `getPageScript9()` same as `getPageScript0()`
+ * * `getPageScript10()` same as `getPageScript0()`
+ * * `onOpen()` which will be called when an url has been navigated
  *
  * @author Toha <tohenk@yahoo.com>
  */
@@ -175,6 +193,8 @@ class WebRobot {
                     options.addArguments('--start-maximized');
                     options.addArguments(`--user-data-dir=${profile}`);
                     options.addArguments('--disable-blink-features=AutomationControlled');
+                    options.addArguments('--disable-crash-reporter');
+                    options.addArguments('--disable-breakpad');
                     options.excludeSwitches('enable-automation');
                     const prefs = {
                         'credentials_enable_service': false,
@@ -200,6 +220,9 @@ class WebRobot {
             }
             if (this.options.headless) {
                 options.addArguments(`--headless=${this.options.headless}`);
+            }
+            if (typeof this.onDriverOptions === 'function') {
+                this.onDriverOptions(options);
             }
             this.driver = await this.createDriver(options);
             // opera doesn't honor download.default_directory
