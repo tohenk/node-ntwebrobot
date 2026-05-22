@@ -229,12 +229,7 @@ class WebRobot {
             if (downloaddir && this.browser === this.constructor.OPERA) {
                 this.driver.setDownloadPath(downloaddir);
             }
-            const source = this.getPageScript();
-            if (source) {
-                await this.driver.sendDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', {
-                    source,
-                });
-            }
+            await this.evaluatePageScript();
         }
         return this.driver;
     }
@@ -319,6 +314,25 @@ class WebRobot {
     }
 
     /**
+     * Evaluate page script for new document.
+     *
+     * @returns {Promise<any>}
+     */
+    evaluatePageScript() {
+        if (!this.driver) {
+            return Promise.reject('Driver not created!');
+        }
+        const source = this.getPageScript();
+        if (source) {
+            return this.driver.sendDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', {
+                source,
+            });
+        } else {
+            return Promise.resolve();
+        }
+    }
+
+    /**
      * A proxy function for Work.works.
      *
      * @param {Array} w Work list
@@ -386,6 +400,46 @@ class WebRobot {
                 resolve();
             })
         });
+    }
+
+    /**
+     * Open url in new tab.
+     *
+     * @param {string} url Url to open
+     * @returns {Promise<any>}
+     */
+    openInNewTab(url) {
+        if (this.handles === undefined) {
+            this.handles = {};
+        }
+        return this.works([
+            [w => Promise.reject('Driver not created!'), w => !this.driver],
+            [w => Promise.reject('A tab is already opened!'), w => this.handles.tab !== undefined],
+            [w => this.driver.getWindowHandle()],
+            [w => this.driver.switchTo().newWindow('tab')],
+            [w => Promise.resolve(this.handles.top = w.getRes(2))],
+            [w => Promise.resolve(this.handles.tab = w.getRes(3))],
+            [w => this.evaluatePageScript()],
+            [w => this.driver.get(url)],
+        ]);
+    }
+
+    /**
+     * Close opened tab.
+     *
+     * @returns {Promise<any>}
+     */
+    closeTab() {
+        if (this.handles === undefined) {
+            this.handles = {};
+        }
+        return this.works([
+            [w => Promise.reject('Driver not created!'), w => !this.driver],
+            [w => Promise.reject('No tab opened!'), w => this.handles.tab === undefined],
+            [w => this.driver.close()],
+            [w => this.driver.switchTo().window(this.handles.top)],
+            [w => Promise.resolve(delete this.handles.tab)],
+        ]);
     }
 
     /**
