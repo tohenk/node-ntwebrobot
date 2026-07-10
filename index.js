@@ -34,7 +34,7 @@ const expectedErrors = [];
 /**
  * A form field value converter callback.
  *
- * @callback valueConverterCallback
+ * @callback ValueConvertCallback
  * @param {string} value Value
  * @returns {string}
  */
@@ -42,7 +42,7 @@ const expectedErrors = [];
 /**
  * A form field value fill callback.
  *
- * @callback valueFillCallback
+ * @callback ValueFillCallback
  * @param {WebElement} el Element
  * @param {string} value Value
  * @returns {Promise<void>}
@@ -51,7 +51,7 @@ const expectedErrors = [];
 /**
  * A form field value can fill callback. The callback must return true if its handled.
  *
- * @callback valueCanFillCallback
+ * @callback ValueCanFillCallback
  * @param {string} tag Element tag name
  * @param {WebElement} el Element
  * @param {string} value Value
@@ -61,7 +61,7 @@ const expectedErrors = [];
 /**
  * A form field pre fill callback.
  *
- * @callback preFillCallback
+ * @callback PreFillCallback
  * @param {WebElement} el Element
  * @param {string} value Value
  */
@@ -69,7 +69,7 @@ const expectedErrors = [];
 /**
  * A form field after fill callback.
  *
- * @callback afterFillCallback
+ * @callback AfterFillCallback
  * @param {WebElement} el Element
  * @returns {Promise<void>}
  */
@@ -341,8 +341,11 @@ class WebRobot {
      * @see Work.works
      */
     works(w, options) {
-        return Work.works(w, WorkErrorLogger.create(this.options.loginfo)
-            .onerror(options || {}));
+        options = options || {};
+        if (this.options.loginfo) {
+            options.loginfo = this.options.loginfo;
+        }
+        return Work.works(w, options);
     }
 
     /**
@@ -394,7 +397,7 @@ class WebRobot {
         return this.works([
             [w => this.driver.quit()],
         ], {
-            done: () => new Promise((resolve, reject) => {
+            onDone: () => new Promise((resolve, reject) => {
                 delete this.driver;
                 delete this._url;
                 resolve();
@@ -544,11 +547,11 @@ class WebRobot {
      * @param {WebElement} data.parent Parent element
      * @param {By} data.target Field selector
      * @param {string} data.value Field value
-     * @param {valueConverterCallback} data.converter Value converter callback
-     * @param {valueFillCallback} data.onfill Value fill callback
-     * @param {valueCanFillCallback} data.canfill Value can fill callback
-     * @param {prefillCallback} data.prefill Pre fill callback
-     * @param {afterFillCallback} data.afterfill After fill callback
+     * @param {ValueConvertCallback} data.converter Value converter callback
+     * @param {ValueFillCallback} data.onfill Value fill callback
+     * @param {ValueCanFillCallback} data.canfill Value can fill callback
+     * @param {PreFillCallback} data.prefill Pre fill callback
+     * @param {AfterFillCallback} data.afterfill After fill callback
      * @returns {Promise<void>}
      */
     fillFormValue(data) {
@@ -1050,42 +1053,39 @@ class WebRobot {
 }
 
 /**
- * A work error logging utility.
+ * Work logging utility.
  *
  * @author Toha <tohenk@yahoo.com>
  */
-class WorkErrorLogger {
-
-    errors = []
+class WebRobotLogger {
 
     constructor(parameters) {
         this.parameters = parameters || {};
+        this.errors = new WeakSet();
     }
 
     /**
-     * Apply work onerror handler.
+     * Handle work onError.
      *
-     * @param {object} options Work options
-     * @returns {object}
+     * @param {any} w Work
+     * @param {options} options Options
      */
-    onerror(options) {
-        if (!options.onerror) {
-            options.onerror = w => {
-                if (w.err instanceof Error && WebRobot.isErr(w.err)) {
-                    const logger = typeof options.logger === 'function' ? options.logger :
-                        (typeof this.parameters.onerror === 'function' ? this.parameters.onerror() : console.error);
-                    if (!this.errors.includes(w.err) && !w.err.cause) {
-                        this.errors.push(w.err);
-                        const offendingLines = this.unindent(w.current.info);
-                        logger('Got error while doing:\n%s\n%s', offendingLines, w.err.toString());
-                    } else {
-                        const lines = w.current.info.split('\n');
-                        logger('-> %s', lines[0].trimEnd() + (lines.length > 1 ? ' ...' : ''));
-                    }
-                }
+    onError(w, options) {
+        if (w.err instanceof Error && WebRobot.isErr(w.err)) {
+            const logger = typeof options.logger === 'function' ? options.logger :
+                (typeof this.parameters.onError === 'function' ? this.parameters.onError() : console.error);
+            if (!this.errors.has(w.err) && !w.err.cause) {
+                this.errors.add(w.err);
+                const offendingLines = this.unindent(w.current.info);
+                logger('Got error while doing:\n%s\n%s', offendingLines, w.err.toString());
+            } else {
+                const lines = w.current.info.split('\n');
+                logger('-> %s', lines[0].trimEnd() + (lines.length > 1 ? ' ...' : ''));
+            }
+            if (typeof options.onErrorPrev === 'function') {
+                options.onErrorPrev(w, options);
             }
         }
-        return options;
     }
 
     /**
@@ -1119,14 +1119,14 @@ class WorkErrorLogger {
     }
 
     /**
-     * Create error logger.
+     * Get error logger.
      *
      * @param {object} parameters The parameters
      * @param {string} parameters.tag Tag name
-     * @param {Function} parameters.onerror Error logger function factory, must return function
-     * @returns {WorkErrorLogger}
+     * @param {Function} parameters.onError Error logger function factory, must return function
+     * @returns {WebRobotLogger}
      */
-    static create(parameters) {
+    static get(parameters) {
         parameters = parameters || {};
         const name = parameters.tag || this.name;
         if (this._loggers === undefined) {
@@ -1137,8 +1137,21 @@ class WorkErrorLogger {
         }
         return this._loggers[name];
     }
+
+    /**
+     * Apply work initializer handler.
+     */
+    static initialize() {
+        Work.setInitializer((options, works) => {
+            const logger = this.get(options.loginfo);
+            if (typeof options.onError === 'function') {
+                options.onErrorPrev = options.onError;
+            }
+            options.onError = logger.onError.bind(logger);
+        });
+    }
 }
 
-WebRobot.WorkErrorLogger = WorkErrorLogger;
+WebRobotLogger.initialize();
 
 module.exports = WebRobot;
