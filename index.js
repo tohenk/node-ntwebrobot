@@ -918,9 +918,9 @@ class WebRobot {
     /**
      * Get element texts.
      *
-     * @param {By[]|object} items Selectors
+     * @param {By[]|WebElement[]|{[key: string]: By|WebElement}} items Selectors
      * @param {WebElement} parent Parent element
-     * @returns {Promise<string[]>}
+     * @returns {Promise<string[]|{[key: string]: string}>}
      */
     getText(items, parent) {
         if (!parent) {
@@ -938,7 +938,7 @@ class WebRobot {
             }
             const q = new Queue(values, item => {
                 this.works([
-                    [w => parent.findElement(item)],
+                    [w => item instanceof WebElement ? Promise.resolve(item) : parent.findElement(item)],
                     [w => w.res.getAttribute('innerText')],
                 ])
                 .then(text => {
