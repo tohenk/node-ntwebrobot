@@ -112,7 +112,7 @@ class WebRobot {
      */
     constructor(options) {
         this.options = options || {};
-        this.browser = this.options.browser || this.constructor.CHROME;
+        this.browser = this.options.browser || WebRobot.CHROME;
         this.workdir = this.options.workdir || __dirname;
         this.profiledir = this.options.profiledir;
         this.session = this.options.session;
@@ -120,7 +120,7 @@ class WebRobot {
         this.timeout = this.options.timeout || 10000;
         this.wait = this.options.wait || 1000;
         this.ready = false;
-        this.browsers = [this.constructor.CHROME, this.constructor.FIREFOX, this.constructor.OPERA];
+        this.browsers = [WebRobot.CHROME, WebRobot.FIREFOX, WebRobot.OPERA];
         this.safeTextArea = this.options.safeTextArea !== undefined ? this.options.safeTextArea : true;
         this.initialize();
         this.setup();
@@ -144,7 +144,7 @@ class WebRobot {
         }
         const profile = this.getProfileDir();
         this.profileDirCreated = !fs.existsSync(profile);
-        if (this.browser === this.constructor.FIREFOX) {
+        if (this.browser === WebRobot.FIREFOX) {
             if (this.profileDirCreated) {
                 const Channel = require('selenium-webdriver/firefox').Channel;
                 Channel.RELEASE.locate()
@@ -179,14 +179,14 @@ class WebRobot {
     async getDriver() {
         if (!this.driver) {
             if (this.browsers.indexOf(this.browser) < 0) {
-                throw new Error('Unsupported browser, supported browsers: ' + this.browsers.join(', '));
+                throw new Error(`Unsupported browser, supported browsers: ${this.browsers.join(', ')}!`);
             }
             let options;
             const profile = this.getProfileDir();
             const downloaddir = this.options.downloaddir;
             switch (this.browser) {
-                case this.constructor.CHROME:
-                case this.constructor.OPERA:
+                case WebRobot.CHROME:
+                case WebRobot.OPERA:
                     const ChromeOptions = require('selenium-webdriver/chrome').Options;
                     /** @type {ChromeOptions} */
                     options = new ChromeOptions();
@@ -208,7 +208,7 @@ class WebRobot {
                     }
                     options.setUserPreferences(prefs);
                     break;
-                case this.constructor.FIREFOX:
+                case WebRobot.FIREFOX:
                     const FirefoxOptions = require('selenium-webdriver/firefox').Options;
                     /** @type {FirefoxOptions} */
                     options = new FirefoxOptions();
@@ -226,7 +226,7 @@ class WebRobot {
             }
             this.driver = await this.createDriver(options);
             // opera doesn't honor download.default_directory
-            if (downloaddir && this.browser === this.constructor.OPERA) {
+            if (downloaddir && this.browser === WebRobot.OPERA) {
                 this.driver.setDownloadPath(downloaddir);
             }
             await this.evaluatePageScript();
@@ -290,12 +290,12 @@ class WebRobot {
     async createDriver(options) {
         let builder;
         switch (this.browser) {
-            case this.constructor.CHROME:
-            case this.constructor.OPERA:
+            case WebRobot.CHROME:
+            case WebRobot.OPERA:
                 builder = new Builder()
-                    .forBrowser(this.constructor.CHROME)
+                    .forBrowser(WebRobot.CHROME)
                     .setChromeOptions(options);
-                if (this.browser === this.constructor.OPERA) {
+                if (this.browser === WebRobot.OPERA) {
                     if (!operaService) {
                         const { ServiceBuilder } = require('selenium-webdriver/chrome');
                         const { findInPath } = require('selenium-webdriver/io');
@@ -304,7 +304,7 @@ class WebRobot {
                     builder.setChromeService(operaService);
                 }
                 break;
-            case this.constructor.FIREFOX:
+            case WebRobot.FIREFOX:
                 builder = new Builder()
                     .forBrowser(this.browser)
                     .setFirefoxOptions(options);
@@ -374,7 +374,7 @@ class WebRobot {
             [w => this.driver.get(url)],
             [w => new Promise((resolve, reject) => {
                 this._url = url;
-                if (this.browser === this.constructor.FIREFOX) {
+                if (this.browser === WebRobot.FIREFOX) {
                     this.driver.manage().window().maximize();
                 }
                 if (typeof this.onOpen === 'function') {
@@ -507,11 +507,11 @@ class WebRobot {
                                             [y => Promise.resolve(data.target), y => !data.el],
                                         ])
                                         .then(target => {
-                                            const message = `Unable to fill form value ${this.truncate(target)}!`;
+                                            const message = `Unable to fill form value ${this.truncate(target)}`;
                                             if (err instanceof Error) {
-                                                err = new Error(message, {cause: err});
+                                                err = new Error(`${message}!`, {cause: err});
                                             } else {
-                                                err = message + '\n' + err;
+                                                err = `${message}: ${err}`;
                                             }
                                             reject(err);
                                         });
@@ -571,7 +571,7 @@ class WebRobot {
                         // get input type
                         [x => Promise.resolve(this.getInputType(x.getRes(0), x.getRes(1)))],
                         // allow only multiple elements for radio
-                        [x => Promise.reject(`Multiple elements found for ${data.target.value}!`), x => x.getRes(2) !== this.constructor.RADIO && count > 1],
+                        [x => Promise.reject(`Multiple elements found for ${data.target.value}!`), x => x.getRes(2) !== WebRobot.RADIO && count > 1],
                         // custom fill in value
                         [x => new Promise((resolve, reject) => {
                             data.el = el;
@@ -608,24 +608,24 @@ class WebRobot {
                         })],
                         // select
                         [x => this.fillSelect(el, value),
-                            x => x.getRes(2) === this.constructor.SELECT && x.getRes(4)],
+                            x => x.getRes(2) === WebRobot.SELECT && x.getRes(4)],
                         // radio
                         [x => this.fillRadio(el, value),
-                            x => x.getRes(2) === this.constructor.RADIO && x.getRes(4)],
+                            x => x.getRes(2) === WebRobot.RADIO && x.getRes(4)],
                         // checkbox
                         [x => this.fillCheckbox(el, value),
-                            x => x.getRes(2) === this.constructor.CHECKBOX && x.getRes(4)],
+                            x => x.getRes(2) === WebRobot.CHECKBOX && x.getRes(4)],
                         // textarea
                         [x => this.fillTextarea(el, value, data.clearUsingKey),
-                            x => x.getRes(2) === this.constructor.TEXTAREA && x.getRes(4)],
+                            x => x.getRes(2) === WebRobot.TEXTAREA && x.getRes(4)],
                         // other inputs
                         [x => this.fillInput(el, value, data.clearUsingKey),
-                            x => x.getRes(2) === this.constructor.OTHER && x.getRes(4)],
+                            x => x.getRes(2) === WebRobot.OTHER && x.getRes(4)],
                         // check staleness
                         [x => this.isStale(el)],
                         // validate required input
                         [x => el.getAttribute('required'),
-                            x => x.getRes(2) !== this.constructor.CHECKBOX && !x.getRes(10)],
+                            x => x.getRes(2) !== WebRobot.CHECKBOX && !x.getRes(10)],
                         [x => el.getAttribute('value'),
                             x => x.getRes(11) === 'true'],
                         [x => Promise.reject(`Input ${data.target.value} is required!`),
@@ -650,20 +650,20 @@ class WebRobot {
      * @returns {number}
      */
     getInputType(tag, type) {
-        let input = this.constructor.OTHER;
+        let input = WebRobot.OTHER;
         switch (tag) {
             case 'input':
                 if (type === 'checkbox') {
-                    input = this.constructor.CHECKBOX;
+                    input = WebRobot.CHECKBOX;
                 } else if (type === 'radio') {
-                    input = this.constructor.RADIO;
+                    input = WebRobot.RADIO;
                 }
                 break;
             case 'select':
-                input = this.constructor.SELECT;
+                input = WebRobot.SELECT;
                 break;
             case 'textarea':
-                input = this.constructor.TEXTAREA;
+                input = WebRobot.TEXTAREA;
                 break;
         }
         return input;
