@@ -24,6 +24,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 const { Builder, By, error, until, WebDriver, WebElement, Key } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 const { parse, HTMLElement, TextNode } = require('node-html-parser');
@@ -179,7 +180,8 @@ class WebRobot {
     async getDriver() {
         if (!this.driver) {
             if (this.browsers.indexOf(this.browser) < 0) {
-                throw new Error(`Unsupported browser, supported browsers: ${this.browsers.join(', ')}!`);
+                throw WebRobotError.create('Unsupported browser, supported browsers: %browser%',
+                    {browser: this.browsers.join(', ')});
             }
             let options;
             const profile = this.getProfileDir();
@@ -320,7 +322,7 @@ class WebRobot {
      */
     evaluatePageScript() {
         if (!this.driver) {
-            return Promise.reject('Driver not created!');
+            return Promise.reject(WebRobotError.create('Driver not created'));
         }
         const source = this.getPageScript();
         if (source) {
@@ -416,8 +418,8 @@ class WebRobot {
             this.handles = {};
         }
         return this.works([
-            [w => Promise.reject('Driver not created!'), w => !this.driver],
-            [w => Promise.reject('A tab is already opened!'), w => this.handles.tab !== undefined],
+            [w => Promise.reject(WebRobotError.create('Driver not created')), w => !this.driver],
+            [w => Promise.reject(WebRobotError.create('A tab is already opened')), w => this.handles.tab !== undefined],
             [w => this.driver.getWindowHandle()],
             [w => this.driver.switchTo().newWindow('tab')],
             [w => Promise.resolve(this.handles.top = w.getRes(2))],
@@ -437,8 +439,8 @@ class WebRobot {
             this.handles = {};
         }
         return this.works([
-            [w => Promise.reject('Driver not created!'), w => !this.driver],
-            [w => Promise.reject('No tab opened!'), w => this.handles.tab === undefined],
+            [w => Promise.reject(WebRobotError.create('Driver not created')), w => !this.driver],
+            [w => Promise.reject(WebRobotError.create('No tab opened')), w => this.handles.tab === undefined],
             [w => this.driver.close()],
             [w => this.driver.switchTo().window(this.handles.top)],
             [w => Promise.resolve(delete this.handles.tab)],
@@ -507,13 +509,16 @@ class WebRobot {
                                             [y => Promise.resolve(data.target), y => !data.el],
                                         ])
                                         .then(target => {
-                                            const message = `Unable to fill form value ${this.truncate(target)}`;
+                                            let error;
                                             if (err instanceof Error) {
-                                                err = new Error(`${message}!`, {cause: err});
+                                                error = WebRobotError.create('Unable to fill form value %target%',
+                                                    {target: this.truncate(target)});
+                                                error.cause = err;
                                             } else {
-                                                err = `${message}: ${err}`;
+                                                error = WebRobotError.create('Unable to fill form value %target%: %message%',
+                                                    {target: this.truncate(target), message: err});
                                             }
-                                            reject(err);
+                                            reject(error);
                                         });
                                     });
                             })],
@@ -558,7 +563,7 @@ class WebRobot {
         return this.works([
             [w => Promise.resolve(Array.isArray(data.elements) ? data.elements :
                 (data.parent ? data.parent.findElements(data.target) : this.findElements(data.target)))],
-            [w => Promise.reject(`Element ${data.target.value} not found!`), w => w.getRes(0).length === 0 && !data.optional],
+            [w => Promise.reject(WebRobotError.create('Element %target% not found', {target: data.target.value})), w => w.getRes(0).length === 0 && !data.optional],
             [w => Promise.resolve(typeof data.converter === 'function' ? data.converter(data.value) : data.value)],
             [w => new Promise((resolve, reject) => {
                 const items = w.getRes(0);
@@ -571,7 +576,7 @@ class WebRobot {
                         // get input type
                         [x => Promise.resolve(this.getInputType(x.getRes(0), x.getRes(1)))],
                         // allow only multiple elements for radio
-                        [x => Promise.reject(`Multiple elements found for ${data.target.value}!`), x => x.getRes(2) !== WebRobot.RADIO && count > 1],
+                        [x => Promise.reject(WebRobotError.create('Multiple elements found for %target%', {target: data.target.value})), x => x.getRes(2) !== WebRobot.RADIO && count > 1],
                         // custom fill in value
                         [x => new Promise((resolve, reject) => {
                             data.el = el;
@@ -628,7 +633,7 @@ class WebRobot {
                             x => x.getRes(2) !== WebRobot.CHECKBOX && !x.getRes(10)],
                         [x => el.getAttribute('value'),
                             x => x.getRes(11) === 'true'],
-                        [x => Promise.reject(`Input ${data.target.value} is required!`),
+                        [x => Promise.reject(WebRobotError.create('Input %target% is required', {target: data.target.value})),
                             x => x.getRes(11) === 'true' && x.getRes(12) === ''],
                         [x => data.afterfill(el),
                             x => typeof data.afterfill === 'function'],
@@ -725,7 +730,8 @@ class WebRobot {
             [w => el.sendKeys(value), w => null !== value && !textAreaSafe],
             [w => this.fillSlashSafe(el, value), w => null !== value && textAreaSafe],
             [w => el.getAttribute('value'), w => null !== value],
-            [w => Promise.reject(`Unable to fill textarea, expected ${value} but got ${w.getRes(4)}!`), w => null !== value && w.getRes(4) !== value],
+            [w => Promise.reject(WebRobotError.create('Unable to fill textarea, expected %expected% but got %value%',
+                {expected: value, value: w.getRes(4)})), w => null !== value && w.getRes(4) !== value],
         ]);
     }
 
@@ -1152,6 +1158,72 @@ class WebRobotLogger {
     }
 }
 
+/**
+ * WebRobot base error.
+ *
+ * @author Toha <tohenk@yahoo.com>
+ */
+class WebRobotError extends Error {
+
+    toString() {
+        return this.message;
+    }
+
+    [util.inspect.custom](depth, options, inspect) {
+        return this.toString();
+    }
+
+    /**
+     * Translate message.
+     *
+     * @param {string} msg Message
+     * @param {object} values Values
+     * @returns {string}
+     */
+    static _(msg, values) {
+        if (typeof msg === 'string') {
+            values = values || {};
+            const f = m => this._messages.find(a => Array.isArray(a) && a[0] === m);
+            if (Array.isArray(this._messages) && this._messages.length) {
+                const translated = f(msg);
+                if (Array.isArray(translated) && translated.length > 1) {
+                    msg = translated[1];
+                }
+            }
+            if (this._saveMessages) {
+                if (this._messages === undefined) {
+                    this._messages = [];
+                }
+                const translated = f(msg);
+                if (!translated) {
+                    this._messages.push([msg, msg]);
+                }
+            }
+            for (const [k, v] of Object.entries(values)) {
+                const re = new RegExp(`%${k}%`, 'gi');
+                msg = msg.replace(re, v)
+            }
+        }
+        return msg;
+    }
+
+    /**
+     * Create new error from error reference or a message.
+     *
+     * @param {Error|string} ref Error reference or message
+     * @param {object} values Message translate values
+     * @returns {WebRobotError}
+     */
+    static create(ref, values = {}) {
+        const err = new this(ref instanceof Error ? ref.message : this._(ref, values));
+        if (ref instanceof Error && ref.cause) {
+            err.cause = ref.cause;
+        }
+        return err;
+    }
+}
+
+WebRobot.WebRobotError = WebRobotError;
 WebRobotLogger.initialize();
 
 module.exports = WebRobot;

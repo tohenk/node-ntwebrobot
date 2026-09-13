@@ -1,6 +1,6 @@
 {
   "name": "@ntlab/webrobot",
-  "version": "2.9.1",
+  "version": "3.0.0",
   "description": "A webrobot based on Selenium",
   "main": "index.js",
   "scripts": {
@@ -21,8 +21,8 @@
   },
   "homepage": "https://github.com/tohenk/node-ntwebrobot#readme",
   "dependencies": {
-    "@ntlab/work": "^2.8.2",
-    "node-html-parser": "^9.0.1",
-    "selenium-webdriver": "^4.47.0"
+    "@ntlab/work": "^2.9.0",
+    "node-html-parser": "^9.0.4",
+    "selenium-webdriver": "^4.49.0"
   }
 }
