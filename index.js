@@ -1159,7 +1159,63 @@ class WebRobotLogger {
 }
 
 /**
- * WebRobot base error.
+ * Message translator function.
+ *
+ * @callback MessageTranslator
+ * @param {string} msg Message
+ * @param {object} values Message placeholder values
+ * @returns {string}
+ */
+
+/**
+ * Message translation.
+ *
+ * @typedef {[string, string]} MessageTranslation
+ */
+
+/**
+ * Web robot messages.
+ *
+ * @author Toha <tohenk@yahoo.com>
+ */
+class WebRobotMessage {
+
+    constructor() {
+        /** @type {MessageTranslation[]} */
+        this.messages = [];
+        /** @type {boolean} */
+        this.collectMessages;
+    }
+
+    /**
+     * Translate message.
+     *
+     * @param {string} msg Message
+     * @param {object} values Values
+     * @returns {string}
+     */
+    translate(msg, values) {
+        if (typeof msg === 'string') {
+            values = values || {};
+            const f = m => this.messages.find(a => Array.isArray(a) && a[0] === m);
+            const translated = f(msg);
+            if (Array.isArray(translated) && translated.length > 1) {
+                msg = translated[1];
+            }
+            if (this.collectMessages && !translated) {
+                this.messages.push([msg, msg]);
+            }
+            for (const [k, v] of Object.entries(values)) {
+                const re = new RegExp(`%${k}%`, 'gi');
+                msg = msg.replace(re, v)
+            }
+        }
+        return msg;
+    }
+}
+
+/**
+ * Web robot base error.
  *
  * @author Toha <tohenk@yahoo.com>
  */
@@ -1174,37 +1230,28 @@ class WebRobotError extends Error {
     }
 
     /**
-     * Translate message.
+     * Get message translator.
      *
-     * @param {string} msg Message
-     * @param {object} values Values
-     * @returns {string}
+     * @returns {MessageTranslator}
      */
-    static _(msg, values) {
-        if (typeof msg === 'string') {
-            values = values || {};
-            const f = m => this._messages.find(a => Array.isArray(a) && a[0] === m);
-            if (Array.isArray(this._messages) && this._messages.length) {
-                const translated = f(msg);
-                if (Array.isArray(translated) && translated.length > 1) {
-                    msg = translated[1];
-                }
-            }
-            if (this._saveMessages) {
-                if (this._messages === undefined) {
-                    this._messages = [];
-                }
-                const translated = f(msg);
-                if (!translated) {
-                    this._messages.push([msg, msg]);
-                }
-            }
-            for (const [k, v] of Object.entries(values)) {
-                const re = new RegExp(`%${k}%`, 'gi');
-                msg = msg.replace(re, v)
-            }
+    static get _() {
+        if (this.mf === undefined) {
+            const MessageClass = this.messageFactory ?? WebRobotMessage;
+            /** @type {WebRobotMessage} */
+            this.mf = new MessageClass();
         }
-        return msg;
+        return this.mf.translate;
+    }
+
+    /**
+     * Set message translator.
+     *
+     * @param {WebRobotMessage} translator Message translator
+     * @returns {typeof WebRobotError}
+     */
+    static setTranslator(translator) {
+        this.mf = translator;
+        return this;
     }
 
     /**
@@ -1223,6 +1270,7 @@ class WebRobotError extends Error {
     }
 }
 
+WebRobot.WebRobotMessage = WebRobotMessage;
 WebRobot.WebRobotError = WebRobotError;
 WebRobotLogger.initialize();
 
