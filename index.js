@@ -1240,7 +1240,7 @@ class WebRobotError extends Error {
             /** @type {WebRobotMessage} */
             this.mf = new MessageClass();
         }
-        return this.mf.translate;
+        return this.mf.translate.bind(this.mf);
     }
 
     /**
