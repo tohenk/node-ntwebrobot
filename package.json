@@ -1,6 +1,6 @@
 {
   "name": "@ntlab/webrobot",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "A webrobot based on Selenium",
   "main": "index.js",
   "scripts": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tohenk/node-ntwebrobot.git"
+    "url": "git+https://github.com/tohenk/node-ntwebrobot.git"
   },
   "keywords": [
     "webrobot",

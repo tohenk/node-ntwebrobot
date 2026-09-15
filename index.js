@@ -1080,10 +1080,14 @@ class WebRobotLogger {
         if (w.err instanceof Error && WebRobot.isErr(w.err)) {
             const logger = typeof options.logger === 'function' ? options.logger :
                 (typeof this.parameters.onError === 'function' ? this.parameters.onError() : console.error);
-            if (!this.errors.has(w.err) && !w.err.cause) {
+            if (!this.errors.has(w.err)) {
                 this.errors.add(w.err);
                 const offendingLines = this.unindent(w.current.info);
-                logger('Got error while doing:\n%s\n%s', offendingLines, w.err.toString());
+                let message = w.err.toString();
+                if (w.err.cause instanceof Error) {
+                    message = `${message} ${w.err.cause.message}`;
+                }
+                logger('Got error while doing:\n%s\n%s', offendingLines, message);
             } else {
                 const lines = w.current.info.split('\n');
                 logger('-> %s', lines[0].trimEnd() + (lines.length > 1 ? ' ...' : ''));
