@@ -25,6 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const Translator = require('@ntlab/ntlib/translator');
 const { Builder, By, error, until, WebDriver, WebElement, Key } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 const { parse, HTMLElement, TextNode } = require('node-html-parser');
@@ -1163,62 +1164,6 @@ class WebRobotLogger {
 }
 
 /**
- * Message translator function.
- *
- * @callback MessageTranslator
- * @param {string} msg Message
- * @param {object} values Message placeholder values
- * @returns {string}
- */
-
-/**
- * Message translation.
- *
- * @typedef {[string, string]} MessageTranslation
- */
-
-/**
- * Web robot messages.
- *
- * @author Toha <tohenk@yahoo.com>
- */
-class WebRobotMessage {
-
-    constructor() {
-        /** @type {MessageTranslation[]} */
-        this.messages = [];
-        /** @type {boolean} */
-        this.collectMessages;
-    }
-
-    /**
-     * Translate message.
-     *
-     * @param {string} msg Message
-     * @param {object} values Values
-     * @returns {string}
-     */
-    translate(msg, values) {
-        if (typeof msg === 'string') {
-            values = values || {};
-            const f = m => this.messages.find(a => Array.isArray(a) && a[0] === m);
-            const translated = f(msg);
-            if (Array.isArray(translated) && translated.length > 1) {
-                msg = translated[1];
-            }
-            if (this.collectMessages && !translated) {
-                this.messages.push([msg, msg]);
-            }
-            for (const [k, v] of Object.entries(values)) {
-                const re = new RegExp(`%${k}%`, 'gi');
-                msg = msg.replace(re, v)
-            }
-        }
-        return msg;
-    }
-}
-
-/**
  * Web robot base error.
  *
  * @author Toha <tohenk@yahoo.com>
@@ -1234,28 +1179,14 @@ class WebRobotError extends Error {
     }
 
     /**
-     * Get message translator.
+     * Translate message.
      *
-     * @returns {MessageTranslator}
+     * @param {string} message Message
+     * @param {object} values Values
+     * @returns {string}
      */
-    static get _() {
-        if (this.mf === undefined) {
-            const MessageClass = this.messageFactory ?? WebRobotMessage;
-            /** @type {WebRobotMessage} */
-            this.mf = new MessageClass();
-        }
-        return this.mf.translate.bind(this.mf);
-    }
-
-    /**
-     * Set message translator.
-     *
-     * @param {WebRobotMessage} translator Message translator
-     * @returns {typeof WebRobotError}
-     */
-    static setTranslator(translator) {
-        this.mf = translator;
-        return this;
+    static _(message, values) {
+        return Translator._(message, values);
     }
 
     /**
@@ -1274,7 +1205,6 @@ class WebRobotError extends Error {
     }
 }
 
-WebRobot.WebRobotMessage = WebRobotMessage;
 WebRobot.WebRobotError = WebRobotError;
 WebRobotLogger.initialize();
 
