@@ -47,7 +47,7 @@ const expectedErrors = [];
  * @callback ValueFillCallback
  * @param {WebElement} el Element
  * @param {string} value Value
- * @returns {Promise<void>}
+ * @returns {Promise<undefined>}
  */
 
 /**
@@ -73,7 +73,7 @@ const expectedErrors = [];
  *
  * @callback AfterFillCallback
  * @param {WebElement} el Element
- * @returns {Promise<void>}
+ * @returns {Promise<undefined>}
  */
 
 /**
@@ -164,7 +164,8 @@ class WebRobot {
                             console.log('Mozilla Firefox create profile returns %d', code);
                             f();
                         });
-                    });
+                    })
+                    .catch(err => console.error(err));
             } else {
                 f();
             }
@@ -355,7 +356,7 @@ class WebRobot {
      * Sleep for milliseconds.
      *
      * @param {number|undefined} ms Milliseconds to sleep
-     * @returns {Promise<void>}
+     * @returns {Promise<undefined>}
      */
     sleep(ms) {
         return this.driver.sleep(ms !== undefined ? ms : this.wait);
@@ -365,7 +366,7 @@ class WebRobot {
      * Open an url.
      *
      * @param {string|undefined} url Url to open using get
-     * @returns {Promise<void>}
+     * @returns {Promise<undefined>}
      */
     open(url) {
         url = url || this.url;
@@ -391,7 +392,7 @@ class WebRobot {
     /**
      * Close and destroy web driver.
      *
-     * @returns {Promise<void>}
+     * @returns {Promise<undefined>}
      */
     close() {
         if (!this.driver) {
@@ -490,45 +491,9 @@ class WebRobot {
                     if (data.parent === undefined && data.target.using === 'xpath' && data.target.value.startsWith('.')) {
                         data.parent = w.getRes(0);
                     }
-                    data.handler = () => {
-                        this.works([
-                            [x => this.sleep(this.wait), x => data.wait],
-                            [x => new Promise((resolve, reject) => {
-                                this.findElement(data.parent)
-                                    .then(res => {
-                                        data.parent = res;
-                                        resolve();
-                                    })
-                                    .catch(err => reject(err));
-                            }), x => data.parent instanceof By],
-                            [x => new Promise((resolve, reject) => {
-                                this.fillFormValue(data)
-                                    .then(() => resolve())
-                                    .catch(err => {
-                                        this.works([
-                                            [y => data.el.getAttribute('outerHTML'), y => data.el],
-                                            [y => Promise.resolve(data.target), y => !data.el],
-                                        ])
-                                        .then(target => {
-                                            let error;
-                                            if (err instanceof Error) {
-                                                error = WebRobotError.create('Unable to fill form value %target%',
-                                                    {target: this.truncate(target)});
-                                                error.cause = err;
-                                            } else {
-                                                error = WebRobotError.create('Unable to fill form value %target%: %message%',
-                                                    {target: this.truncate(target), message: err});
-                                            }
-                                            reject(error);
-                                        });
-                                    });
-                            })],
-                        ])
+                    this.fillInFormField(data)
                         .then(() => next())
                         .catch(err => reject(err));
-                    }
-                    // call handler
-                    data.handler();
                 });
                 q.once('done', () => {
                     this.works([
@@ -549,6 +514,53 @@ class WebRobot {
      * Do form field fill in.
      *
      * @param {object} data Form value data
+     * @param {WebElement} data.parent Parent element
+     * @param {By} data.target Field selector
+     * @param {string} data.value Field value
+     * @returns {Promise<undefined>}
+     */
+    fillInFormField(data) {
+        return this.works([
+            [w => this.sleep(this.wait), w => data.wait],
+            [w => new Promise((resolve, reject) => {
+                this.findElement(data.parent)
+                    .then(res => {
+                        data.parent = res;
+                        resolve();
+                    })
+                    .catch(err => reject(err));
+            }), w => data.parent instanceof By],
+            [w => new Promise((resolve, reject) => {
+                this.fillInFormValue(data)
+                    .then(() => resolve())
+                    .catch(err => {
+                        this.works([
+                            [x => this.isStale(data.el), x => data.el],
+                            [x => data.el.getAttribute('outerHTML'), x => data.el && !x.getRes(0)],
+                            [x => Promise.resolve(data.target), x => !data.el || x.getRes(0)],
+                        ])
+                        .then(target => {
+                            let error;
+                            if (err instanceof Error) {
+                                error = WebRobotError.create('Unable to fill form value %target%',
+                                    {target: this.truncate(target)});
+                                error.cause = err;
+                            } else {
+                                error = WebRobotError.create('Unable to fill form value %target%: %message%',
+                                    {target: this.truncate(target), message: err});
+                            }
+                            reject(error);
+                        })
+                        .catch(err => reject(err));
+                    });
+            })],
+        ]);
+    }
+
+    /**
+     * Do form field value fill in.
+     *
+     * @param {object} data Form value data
      * @param {WebElement[]} data.elements Field elements
      * @param {WebElement} data.parent Parent element
      * @param {By} data.target Field selector
@@ -558,9 +570,9 @@ class WebRobot {
      * @param {ValueCanFillCallback} data.canfill Value can fill callback
      * @param {PreFillCallback} data.prefill Pre fill callback
      * @param {AfterFillCallback} data.afterfill After fill callback
-     * @returns {Promise<void>}
+     * @returns {Promise<undefined>}
      */
-    fillFormValue(data) {
+    fillInFormValue(data) {
         return this.works([
             [w => Promise.resolve(Array.isArray(data.elements) ? data.elements :
                 (data.parent ? data.parent.findElements(data.target) : this.findElements(data.target)))],
@@ -742,7 +754,7 @@ class WebRobot {
      * @param {WebElement} el Input element
      * @param {string} value Input value
      * @param {boolean} useKey Clear input using Ctrl+A+DELETE keys
-     * @returns {Promise<void>}
+     * @returns {Promise<undefined>}
      */
     fillInput(el, value, useKey = false) {
         return this.works([
@@ -768,7 +780,7 @@ class WebRobot {
      *
      * @param {WebElement} el Element
      * @param {string} value Value
-     * @returns {Promise<void>}
+     * @returns {Promise<undefined>}
      */
     fillSlashSafe(el, value) {
         return new Promise((resolve, reject) => {
