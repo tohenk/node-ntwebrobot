@@ -25,10 +25,10 @@
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
-const Translator = require('@ntlab/ntlib/translator');
 const { Builder, By, error, until, WebDriver, WebElement, Key } = require('selenium-webdriver');
 const { Queue, Work } = require('@ntlab/work');
 const { parse, HTMLElement, TextNode } = require('node-html-parser');
+const _ = require('@ntlab/ntlib/translator');
 
 let operaService;
 const expectedErrors = [];
@@ -1198,7 +1198,7 @@ class WebRobotError extends Error {
      * @returns {string}
      */
     static _(message, values) {
-        return Translator._(message, values);
+        return _(message, values);
     }
 
     /**
